@@ -12,7 +12,6 @@ import androidx.room.PrimaryKey
             entity = Workout::class,
             parentColumns = ["id"],
             childColumns = ["workoutId"],
-            // If a workout is deleted, all its exercises are deleted too
             onDelete = ForeignKey.CASCADE
         )
     ],
@@ -25,6 +24,8 @@ data class Exercise(
     val name: String,
     val numberOfSets: Int,
     val restInSeconds: Int,
-    // Controls display order within a workout
-    val orderIndex: Int
+    val orderIndex: Int,
+    // Nullable — null means no target configured
+    val targetWeightKg: Float? = null,
+    val targetReps: Int? = null
 )

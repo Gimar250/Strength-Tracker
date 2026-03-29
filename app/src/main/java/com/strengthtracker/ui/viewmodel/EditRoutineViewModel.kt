@@ -146,6 +146,8 @@ class EditRoutineViewModel(
         name: String,
         sets: Int,
         restSeconds: Int,
+        targetWeightKg: Float?,
+        targetReps: Int?,
         existing: Exercise?
     ) {
         val trimmedName = name.trim()
@@ -157,7 +159,9 @@ class EditRoutineViewModel(
                     existing.copy(
                         name = trimmedName,
                         numberOfSets = sets,
-                        restInSeconds = restSeconds
+                        restInSeconds = restSeconds,
+                        targetWeightKg = targetWeightKg,
+                        targetReps = targetReps
                     )
                 )
             } else {
@@ -168,7 +172,9 @@ class EditRoutineViewModel(
                         name = trimmedName,
                         numberOfSets = sets,
                         restInSeconds = restSeconds,
-                        orderIndex = nextIndex
+                        orderIndex = nextIndex,
+                        targetWeightKg = targetWeightKg,
+                        targetReps = targetReps
                     )
                 )
             }
