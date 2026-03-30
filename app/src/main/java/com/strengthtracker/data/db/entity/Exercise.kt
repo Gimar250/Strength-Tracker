@@ -25,7 +25,8 @@ data class Exercise(
     val numberOfSets: Int,
     val restInSeconds: Int,
     val orderIndex: Int,
-    // Nullable — null means no target configured
     val targetWeightKg: Float? = null,
-    val targetReps: Int? = null
+    // For REPS type: target reps. For TIMED type: target seconds.
+    val targetReps: Int? = null,
+    val exerciseType: ExerciseType = ExerciseType.REPS
 )

@@ -3,21 +3,8 @@ package com.strengthtracker.ui.screen
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.systemBars
-import androidx.compose.foundation.layout.windowInsetsPadding
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.Text
+import androidx.compose.foundation.layout.*
+import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -56,7 +43,7 @@ fun RestTimerScreen(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.SpaceBetween
     ) {
-        // ── Top: Context label ──────────────────────────────────────────────
+        // ── Top: next exercise label ────────────────────────────────────────
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
             modifier = Modifier.padding(top = 48.dp)
@@ -66,14 +53,16 @@ fun RestTimerScreen(
                 style = MaterialTheme.typography.titleLarge,
                 color = MaterialTheme.colorScheme.secondary
             )
+            Spacer(modifier = Modifier.height(4.dp))
+            // Now correctly shows the actual next exercise
             Text(
-                text = "Next: ${state.exercise.name.uppercase()}",
+                text = "Next: ${state.nextExercise.name.uppercase()}",
                 style = MaterialTheme.typography.bodyLarge,
                 color = MaterialTheme.colorScheme.onBackground
             )
         }
 
-        // ── Middle: Circular arc countdown ─────────────────────────────────
+        // ── Middle: arc countdown ───────────────────────────────────────────
         Box(
             contentAlignment = Alignment.Center,
             modifier = Modifier
@@ -81,13 +70,9 @@ fun RestTimerScreen(
                 .drawBehind {
                     val strokeWidth = 16.dp.toPx()
                     val inset = strokeWidth / 2
-                    val arcSize = Size(
-                        size.width - strokeWidth,
-                        size.height - strokeWidth
-                    )
+                    val arcSize = Size(size.width - strokeWidth, size.height - strokeWidth)
                     val topLeft = Offset(inset, inset)
 
-                    // Background track
                     drawArc(
                         color = surfaceColor,
                         startAngle = -90f,
@@ -97,8 +82,6 @@ fun RestTimerScreen(
                         size = arcSize,
                         style = Stroke(width = strokeWidth, cap = StrokeCap.Round)
                     )
-
-                    // Animated foreground arc — drains as time passes
                     drawArc(
                         color = primaryColor,
                         startAngle = -90f,
@@ -118,7 +101,7 @@ fun RestTimerScreen(
             )
         }
 
-        // ── Bottom: Skip button ─────────────────────────────────────────────
+        // ── Bottom: skip ────────────────────────────────────────────────────
         OutlinedButton(
             onClick = onSkip,
             modifier = Modifier
@@ -133,10 +116,7 @@ fun RestTimerScreen(
             ),
             shape = MaterialTheme.shapes.medium
         ) {
-            Text(
-                text = "SKIP REST",
-                style = MaterialTheme.typography.labelLarge
-            )
+            Text("SKIP REST", style = MaterialTheme.typography.labelLarge)
         }
     }
 }

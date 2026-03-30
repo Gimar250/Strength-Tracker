@@ -6,11 +6,7 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.KeyboardArrowDown
-import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -26,6 +22,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.strengthtracker.data.db.entity.Exercise
+import com.strengthtracker.data.db.entity.ExerciseType
 import com.strengthtracker.data.repository.WorkoutRepository
 import com.strengthtracker.ui.viewmodel.EditRoutineViewModel
 import com.strengthtracker.ui.viewmodel.ExerciseSheetState
@@ -42,8 +39,6 @@ fun EditRoutineScreen(
     )
     val state by viewModel.state.collectAsStateWithLifecycle()
     val focusManager = LocalFocusManager.current
-
-    // Bottom sheet for add/edit exercise
     val sheetState = rememberModalBottomSheetState()
 
     if (state.isLoading) {
@@ -57,7 +52,6 @@ fun EditRoutineScreen(
         topBar = {
             TopAppBar(
                 title = {
-                    // Inline editable workout name
                     OutlinedTextField(
                         value = state.workoutNameInput,
                         onValueChange = viewModel::onWorkoutNameChanged,
@@ -89,7 +83,7 @@ fun EditRoutineScreen(
                         onBack()
                     }) {
                         Icon(
-                            imageVector = Icons.Default.ArrowBack,
+                            Icons.Default.ArrowBack,
                             contentDescription = "Back",
                             tint = MaterialTheme.colorScheme.onBackground
                         )
@@ -111,12 +105,9 @@ fun EditRoutineScreen(
         },
         containerColor = MaterialTheme.colorScheme.background
     ) { padding ->
-
         if (state.exercises.isEmpty()) {
             Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(padding),
+                modifier = Modifier.fillMaxSize().padding(padding),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
@@ -128,22 +119,11 @@ fun EditRoutineScreen(
             }
         } else {
             LazyColumn(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(padding),
-                contentPadding = PaddingValues(
-                    start = 16.dp,
-                    end = 16.dp,
-                    top = 8.dp,
-                    // Extra bottom padding so FAB doesn't cover last item
-                    bottom = 96.dp
-                ),
+                modifier = Modifier.fillMaxSize().padding(padding),
+                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 96.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                itemsIndexed(
-                    items = state.exercises,
-                    key = { _, exercise -> exercise.id }
-                ) { index, exercise ->
+                itemsIndexed(state.exercises, key = { _, e -> e.id }) { index, exercise ->
                     ExerciseEditCard(
                         exercise = exercise,
                         isFirst = index == 0,
@@ -158,10 +138,7 @@ fun EditRoutineScreen(
         }
     }
 
-    // ---------------------------------------------------------------------------
-    // Add / Edit Exercise Bottom Sheet
-    // ---------------------------------------------------------------------------
-
+    // ── Bottom Sheet ────────────────────────────────────────────────────────
     val currentSheet = state.sheetState
     if (currentSheet != ExerciseSheetState.Hidden) {
         ModalBottomSheet(
@@ -170,31 +147,23 @@ fun EditRoutineScreen(
             containerColor = MaterialTheme.colorScheme.surface,
             dragHandle = {
                 Surface(
-                    modifier = Modifier
-                        .padding(vertical = 12.dp)
-                        .size(width = 40.dp, height = 4.dp),
+                    modifier = Modifier.padding(vertical = 12.dp).size(width = 40.dp, height = 4.dp),
                     color = MaterialTheme.colorScheme.outline,
                     shape = MaterialTheme.shapes.extraLarge
                 ) {}
             }
         ) {
-            val existingExercise =
-                (currentSheet as? ExerciseSheetState.Editing)?.exercise
-
+            val existingExercise = (currentSheet as? ExerciseSheetState.Editing)?.exercise
             ExerciseEditSheet(
                 existing = existingExercise,
-                onSave = { name, sets, rest, targetWeight, targetReps ->
-                    viewModel.saveExercise(name, sets, rest, targetWeight, targetReps, existingExercise)
+                onSave = { name, sets, rest, targetWeight, targetReps, type ->
+                    viewModel.saveExercise(name, sets, rest, targetWeight, targetReps, type, existingExercise)
                 },
                 onDismiss = { viewModel.dismissSheet() }
             )
         }
     }
 }
-
-// ---------------------------------------------------------------------------
-// Exercise card — shows name, sets, rest, and controls
-// ---------------------------------------------------------------------------
 
 @Composable
 private fun ExerciseEditCard(
@@ -219,67 +188,64 @@ private fun ExerciseEditCard(
                 .padding(start = 16.dp, end = 4.dp, top = 4.dp, bottom = 4.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // ── Exercise info ───────────────────────────────────────────────
             Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = exercise.name.uppercase(),
-                    style = MaterialTheme.typography.titleLarge,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = exercise.name.uppercase(),
+                        style = MaterialTheme.typography.titleLarge,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    // Type badge
+                    Surface(
+                        color = MaterialTheme.colorScheme.background,
+                        shape = MaterialTheme.shapes.extraSmall
+                    ) {
+                        Text(
+                            text = if (exercise.exerciseType == ExerciseType.TIMED) "TIMED" else "REPS",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.secondary,
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                        )
+                    }
+                }
                 Spacer(modifier = Modifier.height(2.dp))
+                val targetLabel = buildString {
+                    append("${exercise.numberOfSets} sets  •  ${exercise.restInSeconds}s rest")
+                    val tw = exercise.targetWeightKg?.let {
+                        if (it % 1 == 0f) it.toInt().toString() else it.toString()
+                    }
+                    val tr = exercise.targetReps?.let {
+                        if (exercise.exerciseType == ExerciseType.TIMED) "${it}s" else "${it} reps"
+                    }
+                    val target = listOfNotNull(tw?.let { "$it kg" }, tr).joinToString(" × ")
+                    if (target.isNotEmpty()) append("  •  $target")
+                }
                 Text(
-                    text = "${exercise.numberOfSets} sets  •  ${exercise.restInSeconds}s rest",
+                    text = targetLabel,
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.secondary
                 )
             }
-
-            // ── Order controls ──────────────────────────────────────────────
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                IconButton(
-                    onClick = onMoveUp,
-                    enabled = !isFirst
-                ) {
+                IconButton(onClick = onMoveUp, enabled = !isFirst) {
                     Icon(
-                        imageVector = Icons.Default.KeyboardArrowUp,
-                        contentDescription = "Move up",
-                        tint = if (isFirst)
-                            MaterialTheme.colorScheme.outline
-                        else
-                            MaterialTheme.colorScheme.onSurface
+                        Icons.Default.KeyboardArrowUp, "Move up",
+                        tint = if (isFirst) MaterialTheme.colorScheme.outline else MaterialTheme.colorScheme.onSurface
                     )
                 }
-                IconButton(
-                    onClick = onMoveDown,
-                    enabled = !isLast
-                ) {
+                IconButton(onClick = onMoveDown, enabled = !isLast) {
                     Icon(
-                        imageVector = Icons.Default.KeyboardArrowDown,
-                        contentDescription = "Move down",
-                        tint = if (isLast)
-                            MaterialTheme.colorScheme.outline
-                        else
-                            MaterialTheme.colorScheme.onSurface
+                        Icons.Default.KeyboardArrowDown, "Move down",
+                        tint = if (isLast) MaterialTheme.colorScheme.outline else MaterialTheme.colorScheme.onSurface
                     )
                 }
             }
-
-            // ── Edit button ─────────────────────────────────────────────────
             IconButton(onClick = onEdit) {
-                Icon(
-                    imageVector = Icons.Default.Add, // will swap below
-                    contentDescription = "Edit exercise",
-                    tint = MaterialTheme.colorScheme.onSurface
-                )
+                Icon(Icons.Default.Edit, "Edit exercise", tint = MaterialTheme.colorScheme.onSurface)
             }
-
-            // ── Delete button ───────────────────────────────────────────────
             IconButton(onClick = { showDeleteConfirm = true }) {
-                Icon(
-                    imageVector = Icons.Default.Delete,
-                    contentDescription = "Delete exercise",
-                    tint = MaterialTheme.colorScheme.secondary
-                )
+                Icon(Icons.Default.Delete, "Delete exercise", tint = MaterialTheme.colorScheme.secondary)
             }
         }
     }
@@ -289,67 +255,48 @@ private fun ExerciseEditCard(
             onDismissRequest = { showDeleteConfirm = false },
             containerColor = MaterialTheme.colorScheme.surfaceVariant,
             title = {
-                Text(
-                    text = "Delete Exercise?",
-                    style = MaterialTheme.typography.titleLarge,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
+                Text("Delete Exercise?", style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onSurface)
             },
             text = {
                 Text(
-                    text = "\"${exercise.name}\" will be permanently removed from this routine.",
+                    "\"${exercise.name}\" will be permanently removed from this routine.",
                     style = MaterialTheme.typography.bodyLarge,
                     color = MaterialTheme.colorScheme.secondary
                 )
             },
             confirmButton = {
-                TextButton(onClick = {
-                    showDeleteConfirm = false
-                    onDelete()
-                }) {
-                    Text(
-                        text = "DELETE",
-                        color = MaterialTheme.colorScheme.primary
-                    )
+                TextButton(onClick = { showDeleteConfirm = false; onDelete() }) {
+                    Text("DELETE", color = MaterialTheme.colorScheme.primary)
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showDeleteConfirm = false }) {
-                    Text(
-                        text = "CANCEL",
-                        color = MaterialTheme.colorScheme.secondary
-                    )
+                    Text("CANCEL", color = MaterialTheme.colorScheme.secondary)
                 }
             }
         )
     }
 }
 
-// ---------------------------------------------------------------------------
-// Add / Edit Exercise Sheet content
-// ---------------------------------------------------------------------------
-
 @Composable
 private fun ExerciseEditSheet(
     existing: Exercise?,
-    onSave: (name: String, sets: Int, rest: Int, targetWeight: Float?, targetReps: Int?) -> Unit,
+    onSave: (name: String, sets: Int, rest: Int, targetWeight: Float?, targetReps: Int?, type: ExerciseType) -> Unit,
     onDismiss: () -> Unit
 ) {
-    var name        by remember { mutableStateOf(existing?.name ?: "") }
-    var sets        by remember { mutableStateOf(existing?.numberOfSets?.toString() ?: "3") }
-    var rest        by remember { mutableStateOf(existing?.restInSeconds?.toString() ?: "90") }
-    // Empty string means "no target set"
+    var name by remember { mutableStateOf(existing?.name ?: "") }
+    var sets by remember { mutableStateOf(existing?.numberOfSets?.toString() ?: "3") }
+    var rest by remember { mutableStateOf(existing?.restInSeconds?.toString() ?: "90") }
     var targetWeight by remember {
         mutableStateOf(existing?.targetWeightKg?.let {
             if (it % 1 == 0f) it.toInt().toString() else it.toString()
         } ?: "")
     }
-    var targetReps  by remember { mutableStateOf(existing?.targetReps?.toString() ?: "") }
+    var targetReps by remember { mutableStateOf(existing?.targetReps?.toString() ?: "") }
+    var exerciseType by remember { mutableStateOf(existing?.exerciseType ?: ExerciseType.REPS) }
 
     val focusRequester = remember { FocusRequester() }
-    val isValid = name.isNotBlank()
-            && (sets.toIntOrNull() ?: 0) > 0
-            && (rest.toIntOrNull() ?: 0) >= 0
+    val isValid = name.isNotBlank() && (sets.toIntOrNull() ?: 0) > 0
 
     LaunchedEffect(Unit) { focusRequester.requestFocus() }
 
@@ -372,9 +319,7 @@ private fun ExerciseEditSheet(
             value = name,
             onValueChange = { name = it },
             label = { Text("Exercise Name") },
-            modifier = Modifier
-                .fillMaxWidth()
-                .focusRequester(focusRequester),
+            modifier = Modifier.fillMaxWidth().focusRequester(focusRequester),
             singleLine = true,
             keyboardOptions = KeyboardOptions(
                 capitalization = KeyboardCapitalization.Words,
@@ -382,6 +327,50 @@ private fun ExerciseEditSheet(
             ),
             colors = sheetTextFieldColors()
         )
+
+        // Exercise type toggle
+        Text(
+            text = "TYPE",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.secondary
+        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            ExerciseType.entries.forEach { type ->
+                val isSelected = exerciseType == type
+                if (isSelected) {
+                    Button(
+                        onClick = { exerciseType = type },
+                        modifier = Modifier.weight(1f),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.primary,
+                            contentColor = MaterialTheme.colorScheme.onPrimary
+                        ),
+                        shape = MaterialTheme.shapes.small
+                    ) {
+                        Text(type.name, style = MaterialTheme.typography.labelLarge)
+                    }
+                } else {
+                    OutlinedButton(
+                        onClick = { exerciseType = type },
+                        modifier = Modifier.weight(1f),
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            contentColor = MaterialTheme.colorScheme.secondary
+                        ),
+                        border = ButtonDefaults.outlinedButtonBorder.copy(
+                            brush = androidx.compose.ui.graphics.SolidColor(
+                                MaterialTheme.colorScheme.outline
+                            )
+                        ),
+                        shape = MaterialTheme.shapes.small
+                    ) {
+                        Text(type.name, style = MaterialTheme.typography.labelLarge)
+                    }
+                }
+            }
+        }
 
         // Sets and Rest
         Row(
@@ -394,10 +383,7 @@ private fun ExerciseEditSheet(
                 label = { Text("Sets") },
                 modifier = Modifier.weight(1f),
                 singleLine = true,
-                keyboardOptions = KeyboardOptions(
-                    keyboardType = KeyboardType.Number,
-                    imeAction = ImeAction.Next
-                ),
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Next),
                 colors = sheetTextFieldColors()
             )
             OutlinedTextField(
@@ -406,55 +392,41 @@ private fun ExerciseEditSheet(
                 label = { Text("Rest (sec)") },
                 modifier = Modifier.weight(1f),
                 singleLine = true,
-                keyboardOptions = KeyboardOptions(
-                    keyboardType = KeyboardType.Number,
-                    imeAction = ImeAction.Next
-                ),
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Next),
                 colors = sheetTextFieldColors()
             )
         }
 
-        // Divider + target section label
+        // Target section
         HorizontalDivider(color = MaterialTheme.colorScheme.outline)
         Text(
             text = "TARGET (optional)",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.secondary
         )
-
-        // Target weight and reps
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             OutlinedTextField(
                 value = targetWeight,
-                onValueChange = {
-                    if (it.matches(Regex("^\\d{0,4}(\\.\\d{0,2})?\$"))) targetWeight = it
-                },
+                onValueChange = { if (it.matches(Regex("^\\d{0,4}(\\.\\d{0,2})?\$"))) targetWeight = it },
                 label = { Text("Target KG") },
                 placeholder = { Text("—", color = MaterialTheme.colorScheme.outline) },
                 modifier = Modifier.weight(1f),
                 singleLine = true,
-                keyboardOptions = KeyboardOptions(
-                    keyboardType = KeyboardType.Decimal,
-                    imeAction = ImeAction.Next
-                ),
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal, imeAction = ImeAction.Next),
                 colors = sheetTextFieldColors()
             )
             OutlinedTextField(
                 value = targetReps,
-                onValueChange = {
-                    if (it.length <= 3 && it.all(Char::isDigit)) targetReps = it
-                },
-                label = { Text("Target Reps") },
+                onValueChange = { if (it.length <= 4 && it.all(Char::isDigit)) targetReps = it },
+                // Label changes based on type
+                label = { Text(if (exerciseType == ExerciseType.TIMED) "Target Secs" else "Target Reps") },
                 placeholder = { Text("—", color = MaterialTheme.colorScheme.outline) },
                 modifier = Modifier.weight(1f),
                 singleLine = true,
-                keyboardOptions = KeyboardOptions(
-                    keyboardType = KeyboardType.Number,
-                    imeAction = ImeAction.Done
-                ),
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Done),
                 colors = sheetTextFieldColors()
             )
         }
@@ -466,13 +438,12 @@ private fun ExerciseEditSheet(
                     sets.toIntOrNull() ?: 3,
                     rest.toIntOrNull() ?: 90,
                     targetWeight.toFloatOrNull(),
-                    targetReps.toIntOrNull()
+                    targetReps.toIntOrNull(),
+                    exerciseType
                 )
             },
             enabled = isValid,
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(64.dp),
+            modifier = Modifier.fillMaxWidth().height(64.dp),
             colors = ButtonDefaults.buttonColors(
                 containerColor = MaterialTheme.colorScheme.primary,
                 contentColor = MaterialTheme.colorScheme.onPrimary,
@@ -489,7 +460,6 @@ private fun ExerciseEditSheet(
     }
 }
 
-// Shared colors for sheet text fields
 @Composable
 private fun sheetTextFieldColors() = OutlinedTextFieldDefaults.colors(
     focusedBorderColor = MaterialTheme.colorScheme.primary,

@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.strengthtracker.data.db.entity.Exercise
+import com.strengthtracker.data.db.entity.ExerciseType
 import com.strengthtracker.data.db.entity.HistoryLog
 import com.strengthtracker.data.repository.WorkoutRepository
 import com.strengthtracker.util.SoundPlayer
@@ -15,10 +16,6 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
-// ---------------------------------------------------------------------------
-// State model — a sealed class makes all possible screens explicit and safe
-// ---------------------------------------------------------------------------
-
 sealed class WorkoutScreenState {
     data object Loading : WorkoutScreenState()
 
@@ -26,14 +23,16 @@ sealed class WorkoutScreenState {
         val exercise: Exercise,
         val exerciseIndex: Int,
         val totalExercises: Int,
-        val currentSet: Int,       // 1-based for display
+        val currentSet: Int,
         val totalSets: Int,
-        val weightKg: String = "", // String to bind directly to TextField
-        val reps: String = ""
+        val weightKg: String = "",
+        val reps: String = "",
+        val stopwatchSeconds: Int = 0,
+        val isStopwatchRunning: Boolean = false
     ) : WorkoutScreenState()
 
     data class Resting(
-        val exercise: Exercise,
+        val nextExercise: Exercise,
         val exerciseIndex: Int,
         val totalExercises: Int,
         val secondsRemaining: Int,
@@ -43,10 +42,6 @@ sealed class WorkoutScreenState {
     data object Finished : WorkoutScreenState()
 }
 
-// ---------------------------------------------------------------------------
-// ViewModel
-// ---------------------------------------------------------------------------
-
 class ActiveWorkoutViewModel(
     private val repository: WorkoutRepository,
     private val workoutId: Long
@@ -55,68 +50,122 @@ class ActiveWorkoutViewModel(
     private val _state = MutableStateFlow<WorkoutScreenState>(WorkoutScreenState.Loading)
     val state: StateFlow<WorkoutScreenState> = _state.asStateFlow()
 
-    // In-memory log — saved to DB all at once when the workout finishes
     private val sessionLogs = mutableListOf<HistoryLog>()
-
-    // Flat list of all exercises loaded at session start
     private var exercises: List<Exercise> = emptyList()
     private var currentExerciseIndex = 0
     private var currentSet = 1
-
-    // Handle to the active timer coroutine so we can cancel it if needed
     private var timerJob: Job? = null
+    private var stopwatchJob: Job? = null
 
-    init {
-        loadWorkout()
-    }
+    init { loadWorkout() }
 
     private fun loadWorkout() {
         viewModelScope.launch {
             exercises = repository.getExercisesForWorkout(workoutId)
-            if (exercises.isEmpty()) {
-                _state.value = WorkoutScreenState.Finished
-                return@launch
-            }
+            if (exercises.isEmpty()) { _state.value = WorkoutScreenState.Finished; return@launch }
             emitActiveSetState()
         }
     }
 
-    // ---------------------------------------------------------------------------
-    // Public actions — called by the UI
-    // ---------------------------------------------------------------------------
+    // ── Input handlers ──────────────────────────────────────────────────────
 
     fun onWeightChanged(value: String) {
-        val current = _state.value as? WorkoutScreenState.ActiveSet ?: return
-        // Only allow numeric input with a single decimal point
-        if (value.matches(Regex("^\\d{0,4}(\\.\\d{0,2})?\$"))) {
-            _state.update { current.copy(weightKg = value) }
-        }
+        val s = _state.value as? WorkoutScreenState.ActiveSet ?: return
+        if (value.matches(Regex("^\\d{0,4}(\\.\\d{0,2})?\$"))) _state.update { s.copy(weightKg = value) }
     }
 
     fun onRepsChanged(value: String) {
-        val current = _state.value as? WorkoutScreenState.ActiveSet ?: return
-        if (value.matches(Regex("^\\d{0,3}\$"))) {
-            _state.update { current.copy(reps = value) }
+        val s = _state.value as? WorkoutScreenState.ActiveSet ?: return
+        if (value.matches(Regex("^\\d{0,3}\$"))) _state.update { s.copy(reps = value) }
+    }
+
+    // ── Stopwatch ───────────────────────────────────────────────────────────
+
+    fun toggleStopwatch() {
+        val s = _state.value as? WorkoutScreenState.ActiveSet ?: return
+        if (s.exercise.exerciseType != ExerciseType.TIMED) return
+
+        if (s.isStopwatchRunning) {
+            stopwatchJob?.cancel()
+            _state.update { (it as? WorkoutScreenState.ActiveSet)?.copy(isStopwatchRunning = false) ?: it }
+        } else {
+            _state.update { (it as? WorkoutScreenState.ActiveSet)?.copy(isStopwatchRunning = true) ?: it }
+            stopwatchJob = viewModelScope.launch {
+                while (true) {
+                    delay(1_000)
+                    _state.update { st ->
+                        (st as? WorkoutScreenState.ActiveSet)?.copy(stopwatchSeconds = st.stopwatchSeconds + 1) ?: st
+                    }
+                }
+            }
+        }
+    }
+
+    fun resetStopwatch() {
+        stopwatchJob?.cancel()
+        _state.update { s ->
+            (s as? WorkoutScreenState.ActiveSet)?.copy(stopwatchSeconds = 0, isStopwatchRunning = false) ?: s
+        }
+    }
+
+    // Allows the user to manually correct the stopwatch value after stopping
+    fun setStopwatchSeconds(seconds: Int) {
+        stopwatchJob?.cancel()
+        _state.update { s ->
+            (s as? WorkoutScreenState.ActiveSet)?.copy(
+                stopwatchSeconds = seconds.coerceAtLeast(0),
+                isStopwatchRunning = false
+            ) ?: s
+        }
+    }
+
+    // ── Core actions ────────────────────────────────────────────────────────
+
+    // Whether the current state qualifies as a real completed set
+    fun isSetCompletable(): Boolean {
+        val s = _state.value as? WorkoutScreenState.ActiveSet ?: return false
+        return when (s.exercise.exerciseType) {
+            ExerciseType.REPS -> (s.reps.toIntOrNull() ?: 0) > 0
+            ExerciseType.TIMED -> s.stopwatchSeconds > 0
         }
     }
 
     fun completeSet() {
-        val current = _state.value as? WorkoutScreenState.ActiveSet ?: return
-        val exercise = current.exercise
+        val s = _state.value as? WorkoutScreenState.ActiveSet ?: return
+        if (!isSetCompletable()) { skipSet(); return } // Defensive guard
+        stopwatchJob?.cancel()
 
-        // Record the set — weight defaults to 0 if left blank
+        val loggedValue = when (s.exercise.exerciseType) {
+            ExerciseType.REPS -> s.reps.toIntOrNull() ?: 0
+            ExerciseType.TIMED -> s.stopwatchSeconds
+        }
+
+        // Always log 0kg if weight is empty — the user may intentionally do bodyweight
         sessionLogs.add(
             HistoryLog(
-                exerciseId = exercise.id,
+                exerciseId = s.exercise.id,
                 workoutId = workoutId,
-                setNumber = current.currentSet,
-                weightKg = current.weightKg.toFloatOrNull() ?: 0f,
-                reps = current.reps.toIntOrNull() ?: 0
+                setNumber = currentSet,
+                weightKg = s.weightKg.toFloatOrNull() ?: 0f,
+                reps = loggedValue
             )
         )
 
-        // Transition to rest timer
-        startRestTimer(exercise)
+        val isLastSet = currentSet >= s.exercise.numberOfSets
+        val isLastExercise = currentExerciseIndex >= exercises.size - 1
+        if (isLastSet && isLastExercise) { finishWorkout(); return }
+        startRestTimer(s.exercise)
+    }
+
+    // Skip without logging — used when reps = 0 or timer = 0
+    fun skipSet() {
+        val s = _state.value as? WorkoutScreenState.ActiveSet ?: return
+        stopwatchJob?.cancel()
+
+        val isLastSet = currentSet >= s.exercise.numberOfSets
+        val isLastExercise = currentExerciseIndex >= exercises.size - 1
+        if (isLastSet && isLastExercise) { finishWorkout(); return }
+        startRestTimer(s.exercise)
     }
 
     fun skipRest() {
@@ -124,15 +173,18 @@ class ActiveWorkoutViewModel(
         advanceWorkout()
     }
 
-    // ---------------------------------------------------------------------------
-    // Internal state machine
-    // ---------------------------------------------------------------------------
+    // ── Internal state machine ──────────────────────────────────────────────
 
-    private fun startRestTimer(exercise: Exercise) {
-        val restSeconds = exercise.restInSeconds
+    private fun startRestTimer(currentExercise: Exercise) {
+        val nextExercise = if (currentSet < currentExercise.numberOfSets)
+            currentExercise
+        else
+            exercises[currentExerciseIndex + 1]
+
+        val restSeconds = currentExercise.restInSeconds
 
         _state.value = WorkoutScreenState.Resting(
-            exercise = exercise,
+            nextExercise = nextExercise,
             exerciseIndex = currentExerciseIndex,
             totalExercises = exercises.size,
             secondsRemaining = restSeconds,
@@ -147,45 +199,25 @@ class ActiveWorkoutViewModel(
                 }
                 delay(1_000)
             }
-            // Timer hit zero
             SoundPlayer.playRestEndBeep()
-            delay(500) // Brief pause so the beep is heard before screen changes
+            delay(500)
             advanceWorkout()
         }
     }
 
     private fun advanceWorkout() {
         val exercise = exercises[currentExerciseIndex]
-        val isLastSet = currentSet >= exercise.numberOfSets
-        val isLastExercise = currentExerciseIndex >= exercises.size - 1
-
         when {
-            // More sets remaining in current exercise
-            !isLastSet -> {
-                currentSet++
-                emitActiveSetState()
-            }
-            // Last set done, but more exercises remain
-            !isLastExercise -> {
-                currentExerciseIndex++
-                currentSet = 1
-                emitActiveSetState()
-            }
-            // All exercises and sets done — save and finish
-            else -> {
-                finishWorkout()
-            }
+            currentSet < exercise.numberOfSets -> { currentSet++; emitActiveSetState() }
+            currentExerciseIndex < exercises.size - 1 -> { currentExerciseIndex++; currentSet = 1; emitActiveSetState() }
+            else -> finishWorkout()
         }
     }
 
     private fun emitActiveSetState() {
+        stopwatchJob?.cancel()
         val exercise = exercises[currentExerciseIndex]
-
-        // Pre-fill weight/reps from the last log entry for this exercise
-        // so the user doesn't have to re-enter the same values every set
-        val lastLog = sessionLogs
-            .filter { it.exerciseId == exercise.id }
-            .lastOrNull()
+        val lastLog = sessionLogs.filter { it.exerciseId == exercise.id }.lastOrNull()
 
         _state.value = WorkoutScreenState.ActiveSet(
             exercise = exercise,
@@ -193,12 +225,12 @@ class ActiveWorkoutViewModel(
             totalExercises = exercises.size,
             currentSet = currentSet,
             totalSets = exercise.numberOfSets,
-            weightKg = lastLog?.weightKg?.let {
-                if (it == 0f) "" else it.toString()
-            } ?: "",
-            reps = lastLog?.reps?.let {
-                if (it == 0) "" else it.toString()
-            } ?: ""
+            weightKg = lastLog?.weightKg?.let { if (it == 0f) "" else it.toString() } ?: "",
+            reps = if (exercise.exerciseType == ExerciseType.REPS)
+                lastLog?.reps?.let { if (it == 0) "" else it.toString() } ?: ""
+            else "",
+            stopwatchSeconds = 0,
+            isStopwatchRunning = false
         )
     }
 
@@ -212,19 +244,15 @@ class ActiveWorkoutViewModel(
     override fun onCleared() {
         super.onCleared()
         timerJob?.cancel()
+        stopwatchJob?.cancel()
     }
-
-    // ---------------------------------------------------------------------------
-    // Factory
-    // ---------------------------------------------------------------------------
 
     class Factory(
         private val repository: WorkoutRepository,
         private val workoutId: Long
     ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
-        override fun <T : ViewModel> create(modelClass: Class<T>): T {
-            return ActiveWorkoutViewModel(repository, workoutId) as T
-        }
+        override fun <T : ViewModel> create(modelClass: Class<T>): T =
+            ActiveWorkoutViewModel(repository, workoutId) as T
     }
 }
