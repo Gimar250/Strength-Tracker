@@ -15,6 +15,7 @@ import androidx.navigation.navArgument
 import com.strengthtracker.data.db.AppDatabase
 import com.strengthtracker.data.repository.WorkoutRepository
 import com.strengthtracker.ui.screen.ActiveWorkoutScreen
+import com.strengthtracker.ui.screen.EditRoutineScreen
 import com.strengthtracker.ui.screen.HomeScreen
 import com.strengthtracker.ui.theme.StrengthTrackerTheme
 
@@ -23,7 +24,6 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
 
-        // Manual DI — build the dependency graph once here
         val db = AppDatabase.getInstance(applicationContext)
         val repository = WorkoutRepository(
             workoutDao = db.workoutDao(),
@@ -45,6 +45,9 @@ class MainActivity : ComponentActivity() {
                                 repository = repository,
                                 onStartWorkout = { workoutId ->
                                     navController.navigate("workout/$workoutId")
+                                },
+                                onEditWorkout = { workoutId ->      // ← new
+                                    navController.navigate("edit/$workoutId")
                                 }
                             )
                         }
@@ -58,9 +61,20 @@ class MainActivity : ComponentActivity() {
                             ActiveWorkoutScreen(
                                 repository = repository,
                                 workoutId = workoutId,
-                                onWorkoutFinished = {
-                                    navController.popBackStack()
-                                }
+                                onWorkoutFinished = { navController.popBackStack() }
+                            )
+                        }
+                        composable(                                 // ← new route
+                            route = "edit/{workoutId}",
+                            arguments = listOf(
+                                navArgument("workoutId") { type = NavType.LongType }
+                            )
+                        ) { backStackEntry ->
+                            val workoutId = backStackEntry.arguments!!.getLong("workoutId")
+                            EditRoutineScreen(
+                                repository = repository,
+                                workoutId = workoutId,
+                                onBack = { navController.popBackStack() }
                             )
                         }
                     }

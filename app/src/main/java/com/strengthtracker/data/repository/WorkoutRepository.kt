@@ -19,18 +19,45 @@ class WorkoutRepository(
     fun getAllWorkouts(): Flow<List<Workout>> =
         workoutDao.getAllWorkouts()
 
+    suspend fun getWorkoutById(id: Long): Workout? =
+        workoutDao.getWorkoutById(id)
+
     suspend fun insertWorkout(workout: Workout): Long =
         workoutDao.insertWorkout(workout)
 
+    suspend fun updateWorkout(workout: Workout) =
+        workoutDao.updateWorkout(workout)
+
+    suspend fun deleteWorkout(workoutId: Long) =
+        workoutDao.deleteWorkout(workoutId)
+
     // --- Exercises ---
 
-    // One-shot load: called once when a workout session begins
+    fun getExercisesForWorkoutFlow(workoutId: Long): Flow<List<Exercise>> =
+        exerciseDao.getExercisesForWorkout(workoutId)
+
     suspend fun getExercisesForWorkout(workoutId: Long): List<Exercise> =
         exerciseDao.getExercisesForWorkoutOnce(workoutId)
 
+    suspend fun insertExercise(exercise: Exercise): Long =
+        exerciseDao.insertExercise(exercise)
+
+    suspend fun updateExercise(exercise: Exercise) =
+        exerciseDao.updateExercise(exercise)
+
+    // Persists a full reordered list — called after any move up/down action
+    suspend fun updateExerciseOrder(exercises: List<Exercise>) =
+        exerciseDao.updateAll(
+            exercises.mapIndexed { index, exercise ->
+                exercise.copy(orderIndex = index)
+            }
+        )
+
+    suspend fun deleteExercise(exercise: Exercise) =
+        exerciseDao.deleteExercise(exercise)
+
     // --- History ---
 
-    // Saves all completed sets for a workout session atomically
     suspend fun saveWorkoutSession(logs: List<HistoryLog>) =
         historyLogDao.insertAll(logs)
 

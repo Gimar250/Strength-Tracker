@@ -1,15 +1,15 @@
 package com.strengthtracker.ui.screen
 
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -21,7 +21,8 @@ import com.strengthtracker.ui.viewmodel.HomeViewModel
 @Composable
 fun HomeScreen(
     repository: WorkoutRepository,
-    onStartWorkout: (Long) -> Unit
+    onStartWorkout: (Long) -> Unit,
+    onEditWorkout: (Long) -> Unit          // ← new callback
 ) {
     val viewModel: HomeViewModel = viewModel(
         factory = HomeViewModel.Factory(repository)
@@ -46,7 +47,6 @@ fun HomeScreen(
         containerColor = MaterialTheme.colorScheme.background
     ) { padding ->
         if (workouts.isEmpty()) {
-            // Empty state — shown briefly on first launch before seed completes
             Box(
                 modifier = Modifier
                     .fillMaxSize()
@@ -66,7 +66,8 @@ fun HomeScreen(
                 items(workouts, key = { it.id }) { workout ->
                     WorkoutCard(
                         workout = workout,
-                        onClick = { onStartWorkout(workout.id) }
+                        onClick = { onStartWorkout(workout.id) },
+                        onEdit = { onEditWorkout(workout.id) }  // ← new
                     )
                 }
             }
@@ -77,12 +78,11 @@ fun HomeScreen(
 @Composable
 private fun WorkoutCard(
     workout: Workout,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    onEdit: () -> Unit
 ) {
     Surface(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick),
+        modifier = Modifier.fillMaxWidth(),
         color = MaterialTheme.colorScheme.surfaceVariant,
         shape = MaterialTheme.shapes.medium,
         tonalElevation = 0.dp
@@ -90,21 +90,34 @@ private fun WorkoutCard(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 20.dp, vertical = 24.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
+                .padding(start = 20.dp, end = 4.dp, top = 8.dp, bottom = 8.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
+            // Tapping the name/arrow starts the workout
             Text(
                 text = workout.name.uppercase(),
                 style = MaterialTheme.typography.titleLarge,
-                color = MaterialTheme.colorScheme.onSurface
+                color = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.weight(1f)
             )
-            Text(
-                text = "▶",
-                style = MaterialTheme.typography.titleLarge,
-                color = MaterialTheme.colorScheme.secondary,
-                textAlign = TextAlign.End
-            )
+
+            // Pencil icon — opens edit screen
+            IconButton(onClick = onEdit) {
+                Icon(
+                    imageVector = Icons.Default.Edit,
+                    contentDescription = "Edit routine",
+                    tint = MaterialTheme.colorScheme.secondary
+                )
+            }
+
+            // Play button — starts workout
+            IconButton(onClick = onClick) {
+                Text(
+                    text = "▶",
+                    style = MaterialTheme.typography.titleLarge,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+            }
         }
     }
 }
