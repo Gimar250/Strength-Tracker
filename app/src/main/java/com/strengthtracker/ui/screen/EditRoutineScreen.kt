@@ -183,8 +183,8 @@ fun EditRoutineScreen(
 
             ExerciseEditSheet(
                 existing = existingExercise,
-                onSave = { name, sets, rest ->
-                    viewModel.saveExercise(name, sets, rest, existingExercise)
+                onSave = { name, sets, rest, targetWeight, targetReps ->
+                    viewModel.saveExercise(name, sets, rest, targetWeight, targetReps, existingExercise)
                 },
                 onDismiss = { viewModel.dismissSheet() }
             )
@@ -332,21 +332,26 @@ private fun ExerciseEditCard(
 @Composable
 private fun ExerciseEditSheet(
     existing: Exercise?,
-    onSave: (name: String, sets: Int, rest: Int) -> Unit,
+    onSave: (name: String, sets: Int, rest: Int, targetWeight: Float?, targetReps: Int?) -> Unit,
     onDismiss: () -> Unit
 ) {
-    var name by remember { mutableStateOf(existing?.name ?: "") }
-    var sets by remember { mutableStateOf(existing?.numberOfSets?.toString() ?: "3") }
-    var rest by remember { mutableStateOf(existing?.restInSeconds?.toString() ?: "90") }
-    val focusRequester = remember { FocusRequester() }
+    var name        by remember { mutableStateOf(existing?.name ?: "") }
+    var sets        by remember { mutableStateOf(existing?.numberOfSets?.toString() ?: "3") }
+    var rest        by remember { mutableStateOf(existing?.restInSeconds?.toString() ?: "90") }
+    // Empty string means "no target set"
+    var targetWeight by remember {
+        mutableStateOf(existing?.targetWeightKg?.let {
+            if (it % 1 == 0f) it.toInt().toString() else it.toString()
+        } ?: "")
+    }
+    var targetReps  by remember { mutableStateOf(existing?.targetReps?.toString() ?: "") }
 
+    val focusRequester = remember { FocusRequester() }
     val isValid = name.isNotBlank()
             && (sets.toIntOrNull() ?: 0) > 0
             && (rest.toIntOrNull() ?: 0) >= 0
 
-    LaunchedEffect(Unit) {
-        focusRequester.requestFocus()
-    }
+    LaunchedEffect(Unit) { focusRequester.requestFocus() }
 
     Column(
         modifier = Modifier
@@ -378,7 +383,7 @@ private fun ExerciseEditSheet(
             colors = sheetTextFieldColors()
         )
 
-        // Sets and Rest on same row
+        // Sets and Rest
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(12.dp)
@@ -403,19 +408,65 @@ private fun ExerciseEditSheet(
                 singleLine = true,
                 keyboardOptions = KeyboardOptions(
                     keyboardType = KeyboardType.Number,
+                    imeAction = ImeAction.Next
+                ),
+                colors = sheetTextFieldColors()
+            )
+        }
+
+        // Divider + target section label
+        HorizontalDivider(color = MaterialTheme.colorScheme.outline)
+        Text(
+            text = "TARGET (optional)",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.secondary
+        )
+
+        // Target weight and reps
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            OutlinedTextField(
+                value = targetWeight,
+                onValueChange = {
+                    if (it.matches(Regex("^\\d{0,4}(\\.\\d{0,2})?\$"))) targetWeight = it
+                },
+                label = { Text("Target KG") },
+                placeholder = { Text("—", color = MaterialTheme.colorScheme.outline) },
+                modifier = Modifier.weight(1f),
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(
+                    keyboardType = KeyboardType.Decimal,
+                    imeAction = ImeAction.Next
+                ),
+                colors = sheetTextFieldColors()
+            )
+            OutlinedTextField(
+                value = targetReps,
+                onValueChange = {
+                    if (it.length <= 3 && it.all(Char::isDigit)) targetReps = it
+                },
+                label = { Text("Target Reps") },
+                placeholder = { Text("—", color = MaterialTheme.colorScheme.outline) },
+                modifier = Modifier.weight(1f),
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(
+                    keyboardType = KeyboardType.Number,
                     imeAction = ImeAction.Done
                 ),
                 colors = sheetTextFieldColors()
             )
         }
 
-        // Save button
         Button(
             onClick = {
                 onSave(
                     name,
                     sets.toIntOrNull() ?: 3,
-                    rest.toIntOrNull() ?: 90
+                    rest.toIntOrNull() ?: 90,
+                    targetWeight.toFloatOrNull(),
+                    targetReps.toIntOrNull()
                 )
             },
             enabled = isValid,

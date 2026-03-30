@@ -8,13 +8,12 @@ import com.strengthtracker.data.repository.WorkoutRepository
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
 
 class HomeViewModel(
     private val repository: WorkoutRepository
 ) : ViewModel() {
 
-    // Converts the DAO's cold Flow into a hot StateFlow
-    // so the UI always has the latest list even after recomposition
     val workouts: StateFlow<List<Workout>> = repository
         .getAllWorkouts()
         .stateIn(
@@ -23,7 +22,14 @@ class HomeViewModel(
             initialValue = emptyList()
         )
 
-    // Factory for manual dependency injection (no Hilt needed)
+    // Returns the new workout's ID so we can navigate straight to the edit screen
+    fun createWorkout(name: String, onCreated: (Long) -> Unit) {
+        viewModelScope.launch {
+            val id = repository.insertWorkout(Workout(name = name.trim()))
+            onCreated(id)
+        }
+    }
+
     class Factory(private val repository: WorkoutRepository) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T {

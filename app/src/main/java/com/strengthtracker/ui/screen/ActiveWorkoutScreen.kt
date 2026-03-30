@@ -20,6 +20,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.strengthtracker.data.db.entity.Exercise
 import com.strengthtracker.data.repository.WorkoutRepository
 import com.strengthtracker.ui.viewmodel.ActiveWorkoutViewModel
 import com.strengthtracker.ui.viewmodel.WorkoutScreenState
@@ -108,6 +109,15 @@ private fun ActiveSetScreen(
                 currentSet = state.currentSet,
                 totalSets = state.totalSets
             )
+
+            // ── Target banner — only shown if a target is configured ────────
+            val hasTarget = state.exercise.targetWeightKg != null
+                    || state.exercise.targetReps != null
+
+            if (hasTarget) {
+                Spacer(modifier = Modifier.height(16.dp))
+                TargetBanner(exercise = state.exercise)
+            }
         }
 
         // ── Middle: Input fields ────────────────────────────────────────────
@@ -146,6 +156,43 @@ private fun ActiveSetScreen(
             Text(
                 text = "COMPLETE SET",
                 style = MaterialTheme.typography.labelLarge
+            )
+        }
+    }
+}
+
+// Target banner — shows configured goal, dimmed so it doesn't distract
+@Composable
+private fun TargetBanner(exercise: Exercise) {
+    val weightPart = exercise.targetWeightKg?.let {
+        val formatted = if (it % 1 == 0f) it.toInt().toString() else it.toString()
+        "$formatted kg"
+    }
+    val repsPart = exercise.targetReps?.let { "$it reps" }
+
+    // Build label: "80 kg × 8 reps", "80 kg", or "8 reps"
+    val label = listOfNotNull(weightPart, repsPart).joinToString(" × ")
+
+    Surface(
+        color = MaterialTheme.colorScheme.surfaceVariant,
+        shape = MaterialTheme.shapes.small
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Text(
+                text = "TARGET",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.secondary
+            )
+            Text(
+                text = label,
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurface
             )
         }
     }
