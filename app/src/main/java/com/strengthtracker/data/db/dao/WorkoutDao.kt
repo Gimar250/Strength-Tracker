@@ -11,7 +11,8 @@ import kotlinx.coroutines.flow.Flow
 @Dao
 interface WorkoutDao {
 
-    @Query("SELECT * FROM workouts ORDER BY name ASC")
+    // Ordered by orderIndex, with id as tiebreaker for stability after migration
+    @Query("SELECT * FROM workouts ORDER BY orderIndex ASC, id ASC")
     fun getAllWorkouts(): Flow<List<Workout>>
 
     @Query("SELECT * FROM workouts WHERE id = :id")
@@ -25,6 +26,10 @@ interface WorkoutDao {
 
     @Update
     suspend fun updateWorkout(workout: Workout)
+
+    // Batch update used when persisting a reordered list
+    @Update
+    suspend fun updateAll(workouts: List<Workout>)
 
     @Query("DELETE FROM workouts WHERE id = :workoutId")
     suspend fun deleteWorkout(workoutId: Long)

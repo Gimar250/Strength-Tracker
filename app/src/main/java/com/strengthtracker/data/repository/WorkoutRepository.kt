@@ -13,60 +13,37 @@ class WorkoutRepository(
     private val exerciseDao: ExerciseDao,
     private val historyLogDao: HistoryLogDao
 ) {
-
     // --- Workouts ---
-
-    fun getAllWorkouts(): Flow<List<Workout>> =
-        workoutDao.getAllWorkouts()
-
-    suspend fun getWorkoutById(id: Long): Workout? =
-        workoutDao.getWorkoutById(id)
-
-    suspend fun insertWorkout(workout: Workout): Long =
-        workoutDao.insertWorkout(workout)
-
-    suspend fun updateWorkout(workout: Workout) =
-        workoutDao.updateWorkout(workout)
-
-    suspend fun deleteWorkout(workoutId: Long) =
-        workoutDao.deleteWorkout(workoutId)
+    fun getAllWorkouts(): Flow<List<Workout>> = workoutDao.getAllWorkouts()
+    suspend fun getWorkoutById(id: Long): Workout? = workoutDao.getWorkoutById(id)
+    suspend fun insertWorkout(workout: Workout): Long = workoutDao.insertWorkout(workout)
+    suspend fun updateWorkout(workout: Workout) = workoutDao.updateWorkout(workout)
+    suspend fun deleteWorkout(workoutId: Long) = workoutDao.deleteWorkout(workoutId)
+    suspend fun updateWorkoutOrder(workouts: List<Workout>) =
+        workoutDao.updateAll(workouts.mapIndexed { i, w -> w.copy(orderIndex = i) })
 
     // --- Exercises ---
-
     fun getExercisesForWorkoutFlow(workoutId: Long): Flow<List<Exercise>> =
         exerciseDao.getExercisesForWorkout(workoutId)
-
     suspend fun getExercisesForWorkout(workoutId: Long): List<Exercise> =
         exerciseDao.getExercisesForWorkoutOnce(workoutId)
-
-    suspend fun insertExercise(exercise: Exercise): Long =
-        exerciseDao.insertExercise(exercise)
-
-    suspend fun updateExercise(exercise: Exercise) =
-        exerciseDao.updateExercise(exercise)
-
-    // Persists a full reordered list — called after any move up/down action
+    suspend fun insertExercise(exercise: Exercise): Long = exerciseDao.insertExercise(exercise)
+    suspend fun updateExercise(exercise: Exercise) = exerciseDao.updateExercise(exercise)
     suspend fun updateExerciseOrder(exercises: List<Exercise>) =
-        exerciseDao.updateAll(
-            exercises.mapIndexed { index, exercise ->
-                exercise.copy(orderIndex = index)
-            }
-        )
+        exerciseDao.updateAll(exercises.mapIndexed { i, e -> e.copy(orderIndex = i) })
+    suspend fun deleteExercise(exercise: Exercise) = exerciseDao.deleteExercise(exercise)
 
-    suspend fun deleteExercise(exercise: Exercise) =
-        exerciseDao.deleteExercise(exercise)
+    // Returns all exercises grouped by workoutId — used for CSV export
+    suspend fun getAllExercisesGrouped(): Map<Long, List<Exercise>> =
+        exerciseDao.getAllExercises().groupBy { it.workoutId }
 
     // --- History ---
-
-    suspend fun saveWorkoutSession(logs: List<HistoryLog>) =
-        historyLogDao.insertAll(logs)
-
+    suspend fun saveWorkoutSession(logs: List<HistoryLog>) = historyLogDao.insertAll(logs)
     fun getLogsForExercise(exerciseId: Long): Flow<List<HistoryLog>> =
         historyLogDao.getLogsForExercise(exerciseId)
-
     fun getLogsForWorkout(workoutId: Long): Flow<List<HistoryLog>> =
         historyLogDao.getLogsForWorkout(workoutId)
-
     suspend fun getLastSessionForWorkout(workoutId: Long): HistoryLog? =
         historyLogDao.getLastSessionForWorkout(workoutId)
+    suspend fun getAllLogs(): List<HistoryLog> = historyLogDao.getAllLogs()
 }

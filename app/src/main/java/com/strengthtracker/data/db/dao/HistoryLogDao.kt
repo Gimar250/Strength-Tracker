@@ -13,32 +13,19 @@ interface HistoryLogDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertLog(log: HistoryLog)
 
-    // Batch insert — used at the end of a workout to save everything at once
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertAll(logs: List<HistoryLog>)
 
-    // Retrieve all logs for a specific exercise, newest first
-    @Query("""
-        SELECT * FROM history_logs 
-        WHERE exerciseId = :exerciseId 
-        ORDER BY timestamp DESC
-    """)
+    @Query("SELECT * FROM history_logs WHERE exerciseId = :exerciseId ORDER BY timestamp DESC")
     fun getLogsForExercise(exerciseId: Long): Flow<List<HistoryLog>>
 
-    // Retrieve all logs for a complete workout session (by workout + date range)
-    @Query("""
-        SELECT * FROM history_logs 
-        WHERE workoutId = :workoutId 
-        ORDER BY timestamp DESC
-    """)
+    @Query("SELECT * FROM history_logs WHERE workoutId = :workoutId ORDER BY timestamp DESC")
     fun getLogsForWorkout(workoutId: Long): Flow<List<HistoryLog>>
 
-    // Useful for home screen: show last time this workout was done
-    @Query("""
-        SELECT * FROM history_logs 
-        WHERE workoutId = :workoutId 
-        ORDER BY timestamp DESC 
-        LIMIT 1
-    """)
+    @Query("SELECT * FROM history_logs WHERE workoutId = :workoutId ORDER BY timestamp DESC LIMIT 1")
     suspend fun getLastSessionForWorkout(workoutId: Long): HistoryLog?
+
+    // Used for CSV export — all logs ordered by date
+    @Query("SELECT * FROM history_logs ORDER BY timestamp ASC")
+    suspend fun getAllLogs(): List<HistoryLog>
 }

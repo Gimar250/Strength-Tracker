@@ -18,6 +18,10 @@ interface ExerciseDao {
     @Query("SELECT * FROM exercises WHERE workoutId = :workoutId ORDER BY orderIndex ASC")
     suspend fun getExercisesForWorkoutOnce(workoutId: Long): List<Exercise>
 
+    // Used for CSV export — returns all exercises across all workouts
+    @Query("SELECT * FROM exercises ORDER BY workoutId ASC, orderIndex ASC")
+    suspend fun getAllExercises(): List<Exercise>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertExercise(exercise: Exercise): Long
 
@@ -27,7 +31,6 @@ interface ExerciseDao {
     @Update
     suspend fun updateExercise(exercise: Exercise)
 
-    // Batch update — used when reordering to persist all new orderIndex values
     @Update
     suspend fun updateAll(exercises: List<Exercise>)
 
