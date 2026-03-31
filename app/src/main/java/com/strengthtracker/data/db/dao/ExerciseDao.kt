@@ -18,9 +18,15 @@ interface ExerciseDao {
     @Query("SELECT * FROM exercises WHERE workoutId = :workoutId ORDER BY orderIndex ASC")
     suspend fun getExercisesForWorkoutOnce(workoutId: Long): List<Exercise>
 
-    // Used for CSV export — returns all exercises across all workouts
     @Query("SELECT * FROM exercises ORDER BY workoutId ASC, orderIndex ASC")
     suspend fun getAllExercises(): List<Exercise>
+
+    // Live flow of all exercises — used by HistoryViewModel for name lookups
+    @Query("SELECT * FROM exercises ORDER BY workoutId ASC, orderIndex ASC")
+    fun getAllExercisesFlow(): Flow<List<Exercise>>
+
+    @Query("SELECT * FROM exercises WHERE id = :id")
+    suspend fun getExerciseById(id: Long): Exercise?
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertExercise(exercise: Exercise): Long

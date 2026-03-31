@@ -27,15 +27,15 @@ class WorkoutRepository(
         exerciseDao.getExercisesForWorkout(workoutId)
     suspend fun getExercisesForWorkout(workoutId: Long): List<Exercise> =
         exerciseDao.getExercisesForWorkoutOnce(workoutId)
+    suspend fun getExerciseById(id: Long): Exercise? = exerciseDao.getExerciseById(id)
     suspend fun insertExercise(exercise: Exercise): Long = exerciseDao.insertExercise(exercise)
     suspend fun updateExercise(exercise: Exercise) = exerciseDao.updateExercise(exercise)
     suspend fun updateExerciseOrder(exercises: List<Exercise>) =
         exerciseDao.updateAll(exercises.mapIndexed { i, e -> e.copy(orderIndex = i) })
     suspend fun deleteExercise(exercise: Exercise) = exerciseDao.deleteExercise(exercise)
-
-    // Returns all exercises grouped by workoutId — used for CSV export
     suspend fun getAllExercisesGrouped(): Map<Long, List<Exercise>> =
         exerciseDao.getAllExercises().groupBy { it.workoutId }
+    fun getAllExercisesFlow(): Flow<List<Exercise>> = exerciseDao.getAllExercisesFlow()
 
     // --- History ---
     suspend fun saveWorkoutSession(logs: List<HistoryLog>) = historyLogDao.insertAll(logs)
@@ -46,4 +46,5 @@ class WorkoutRepository(
     suspend fun getLastSessionForWorkout(workoutId: Long): HistoryLog? =
         historyLogDao.getLastSessionForWorkout(workoutId)
     suspend fun getAllLogs(): List<HistoryLog> = historyLogDao.getAllLogs()
+    fun getAllLogsFlow(): Flow<List<HistoryLog>> = historyLogDao.getAllLogsFlow()
 }

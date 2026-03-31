@@ -25,7 +25,10 @@ interface HistoryLogDao {
     @Query("SELECT * FROM history_logs WHERE workoutId = :workoutId ORDER BY timestamp DESC LIMIT 1")
     suspend fun getLastSessionForWorkout(workoutId: Long): HistoryLog?
 
-    // Used for CSV export — all logs ordered by date
-    @Query("SELECT * FROM history_logs ORDER BY timestamp ASC")
+    @Query("SELECT * FROM history_logs ORDER BY timestamp DESC")
     suspend fun getAllLogs(): List<HistoryLog>
+
+    // Live flow of all logs — used by HistoryViewModel
+    @Query("SELECT * FROM history_logs ORDER BY timestamp DESC")
+    fun getAllLogsFlow(): Flow<List<HistoryLog>>
 }
