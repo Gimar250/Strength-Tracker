@@ -92,7 +92,7 @@ private fun AppNavigation(repository: WorkoutRepository) {
         NavHost(
             navController = navController,
             startDestination = BottomTab.Workouts.route,
-            modifier = Modifier.padding(innerPadding)
+            modifier = Modifier.padding(bottom = innerPadding.calculateBottomPadding())
         ) {
 
             // ── Tab 1: Workouts ───────────────────────────────────────────
