@@ -16,9 +16,31 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
+// ---------------------------------------------------------------------------
+// Progress summary — shown in the overlay sheet
+// ---------------------------------------------------------------------------
+
+enum class SetStatus { COMPLETED, SKIPPED, CURRENT, PENDING }
+
+data class SetProgressItem(
+    val setNumber: Int,         // 1-based
+    val status: SetStatus,
+    val weightKg: Float? = null,
+    val value: Int? = null      // reps or seconds depending on type
+)
+
+data class ExerciseProgressItem(
+    val exercise: Exercise,
+    val sets: List<SetProgressItem>,
+    val isCurrentExercise: Boolean
+)
+
+// ---------------------------------------------------------------------------
+// Screen states — unchanged from before
+// ---------------------------------------------------------------------------
+
 sealed class WorkoutScreenState {
     data object Loading : WorkoutScreenState()
-
     data class ActiveSet(
         val exercise: Exercise,
         val exerciseIndex: Int,
@@ -30,7 +52,6 @@ sealed class WorkoutScreenState {
         val stopwatchSeconds: Int = 0,
         val isStopwatchRunning: Boolean = false
     ) : WorkoutScreenState()
-
     data class Resting(
         val nextExercise: Exercise,
         val exerciseIndex: Int,
@@ -38,9 +59,12 @@ sealed class WorkoutScreenState {
         val secondsRemaining: Int,
         val totalSeconds: Int
     ) : WorkoutScreenState()
-
     data object Finished : WorkoutScreenState()
 }
+
+// ---------------------------------------------------------------------------
+// ViewModel
+// ---------------------------------------------------------------------------
 
 class ActiveWorkoutViewModel(
     private val repository: WorkoutRepository,
@@ -49,6 +73,10 @@ class ActiveWorkoutViewModel(
 
     private val _state = MutableStateFlow<WorkoutScreenState>(WorkoutScreenState.Loading)
     val state: StateFlow<WorkoutScreenState> = _state.asStateFlow()
+
+    // Sheet visibility — owned here so it survives recomposition
+    private val _showProgressSheet = MutableStateFlow(false)
+    val showProgressSheet: StateFlow<Boolean> = _showProgressSheet.asStateFlow()
 
     private val sessionLogs = mutableListOf<HistoryLog>()
     private var exercises: List<Exercise> = emptyList()
@@ -67,7 +95,62 @@ class ActiveWorkoutViewModel(
         }
     }
 
-    // ── Input handlers ──────────────────────────────────────────────────────
+    // ---------------------------------------------------------------------------
+    // Progress sheet
+    // ---------------------------------------------------------------------------
+
+    fun openProgressSheet() { _showProgressSheet.value = true }
+    fun closeProgressSheet() { _showProgressSheet.value = false }
+
+    // Computed on demand — called by the UI when the sheet opens
+    fun buildProgressItems(): List<ExerciseProgressItem> {
+        if (exercises.isEmpty()) return emptyList()
+
+        // Index of the exercise we consider "current" regardless of screen state
+        val activeExerciseIndex = when (val s = _state.value) {
+            is WorkoutScreenState.ActiveSet -> s.exerciseIndex
+            is WorkoutScreenState.Resting -> s.exerciseIndex
+            else -> currentExerciseIndex
+        }
+        val activeSet = when (val s = _state.value) {
+            is WorkoutScreenState.ActiveSet -> s.currentSet
+            // During rest we have just completed currentSet, so the active
+            // set from a display perspective is still currentSet
+            else -> currentSet
+        }
+
+        return exercises.mapIndexed { exIndex, exercise ->
+            val logsForExercise = sessionLogs.filter { it.exerciseId == exercise.id }
+
+            val sets = (1..exercise.numberOfSets).map { setNum ->
+                val log = logsForExercise.find { it.setNumber == setNum }
+                val status = when {
+                    log != null -> SetStatus.COMPLETED
+                    exIndex == activeExerciseIndex && setNum == activeSet &&
+                            _state.value is WorkoutScreenState.ActiveSet -> SetStatus.CURRENT
+                    exIndex < activeExerciseIndex -> SetStatus.SKIPPED
+                    exIndex == activeExerciseIndex && setNum < activeSet -> SetStatus.COMPLETED
+                    else -> SetStatus.PENDING
+                }
+                SetProgressItem(
+                    setNumber = setNum,
+                    status = status,
+                    weightKg = log?.weightKg,
+                    value = log?.reps
+                )
+            }
+
+            ExerciseProgressItem(
+                exercise = exercise,
+                sets = sets,
+                isCurrentExercise = exIndex == activeExerciseIndex
+            )
+        }
+    }
+
+    // ---------------------------------------------------------------------------
+    // Input handlers
+    // ---------------------------------------------------------------------------
 
     fun onWeightChanged(value: String) {
         val s = _state.value as? WorkoutScreenState.ActiveSet ?: return
@@ -79,12 +162,13 @@ class ActiveWorkoutViewModel(
         if (value.matches(Regex("^\\d{0,3}\$"))) _state.update { s.copy(reps = value) }
     }
 
-    // ── Stopwatch ───────────────────────────────────────────────────────────
+    // ---------------------------------------------------------------------------
+    // Stopwatch
+    // ---------------------------------------------------------------------------
 
     fun toggleStopwatch() {
         val s = _state.value as? WorkoutScreenState.ActiveSet ?: return
         if (s.exercise.exerciseType != ExerciseType.TIMED) return
-
         if (s.isStopwatchRunning) {
             stopwatchJob?.cancel()
             _state.update { (it as? WorkoutScreenState.ActiveSet)?.copy(isStopwatchRunning = false) ?: it }
@@ -108,7 +192,6 @@ class ActiveWorkoutViewModel(
         }
     }
 
-    // Allows the user to manually correct the stopwatch value after stopping
     fun setStopwatchSeconds(seconds: Int) {
         stopwatchJob?.cancel()
         _state.update { s ->
@@ -119,9 +202,10 @@ class ActiveWorkoutViewModel(
         }
     }
 
-    // ── Core actions ────────────────────────────────────────────────────────
+    // ---------------------------------------------------------------------------
+    // Core actions
+    // ---------------------------------------------------------------------------
 
-    // Whether the current state qualifies as a real completed set
     fun isSetCompletable(): Boolean {
         val s = _state.value as? WorkoutScreenState.ActiveSet ?: return false
         return when (s.exercise.exerciseType) {
@@ -132,7 +216,7 @@ class ActiveWorkoutViewModel(
 
     fun completeSet() {
         val s = _state.value as? WorkoutScreenState.ActiveSet ?: return
-        if (!isSetCompletable()) { skipSet(); return } // Defensive guard
+        if (!isSetCompletable()) { skipSet(); return }
         stopwatchJob?.cancel()
 
         val loggedValue = when (s.exercise.exerciseType) {
@@ -140,7 +224,6 @@ class ActiveWorkoutViewModel(
             ExerciseType.TIMED -> s.stopwatchSeconds
         }
 
-        // Always log 0kg if weight is empty — the user may intentionally do bodyweight
         sessionLogs.add(
             HistoryLog(
                 exerciseId = s.exercise.id,
@@ -157,11 +240,9 @@ class ActiveWorkoutViewModel(
         startRestTimer(s.exercise)
     }
 
-    // Skip without logging — used when reps = 0 or timer = 0
     fun skipSet() {
         val s = _state.value as? WorkoutScreenState.ActiveSet ?: return
         stopwatchJob?.cancel()
-
         val isLastSet = currentSet >= s.exercise.numberOfSets
         val isLastExercise = currentExerciseIndex >= exercises.size - 1
         if (isLastSet && isLastExercise) { finishWorkout(); return }
@@ -173,27 +254,26 @@ class ActiveWorkoutViewModel(
         advanceWorkout()
     }
 
-    // ── Internal state machine ──────────────────────────────────────────────
+    // ---------------------------------------------------------------------------
+    // Internal state machine
+    // ---------------------------------------------------------------------------
 
     private fun startRestTimer(currentExercise: Exercise) {
         val nextExercise = if (currentSet < currentExercise.numberOfSets)
             currentExercise
-        else
-            exercises[currentExerciseIndex + 1]
-
-        val restSeconds = currentExercise.restInSeconds
+        else exercises[currentExerciseIndex + 1]
 
         _state.value = WorkoutScreenState.Resting(
             nextExercise = nextExercise,
             exerciseIndex = currentExerciseIndex,
             totalExercises = exercises.size,
-            secondsRemaining = restSeconds,
-            totalSeconds = restSeconds
+            secondsRemaining = currentExercise.restInSeconds,
+            totalSeconds = currentExercise.restInSeconds
         )
 
         timerJob?.cancel()
         timerJob = viewModelScope.launch {
-            for (remaining in restSeconds downTo 1) {
+            for (remaining in currentExercise.restInSeconds downTo 1) {
                 _state.update {
                     (it as? WorkoutScreenState.Resting)?.copy(secondsRemaining = remaining) ?: it
                 }
@@ -209,7 +289,9 @@ class ActiveWorkoutViewModel(
         val exercise = exercises[currentExerciseIndex]
         when {
             currentSet < exercise.numberOfSets -> { currentSet++; emitActiveSetState() }
-            currentExerciseIndex < exercises.size - 1 -> { currentExerciseIndex++; currentSet = 1; emitActiveSetState() }
+            currentExerciseIndex < exercises.size - 1 -> {
+                currentExerciseIndex++; currentSet = 1; emitActiveSetState()
+            }
             else -> finishWorkout()
         }
     }
@@ -218,7 +300,6 @@ class ActiveWorkoutViewModel(
         stopwatchJob?.cancel()
         val exercise = exercises[currentExerciseIndex]
         val lastLog = sessionLogs.filter { it.exerciseId == exercise.id }.lastOrNull()
-
         _state.value = WorkoutScreenState.ActiveSet(
             exercise = exercise,
             exerciseIndex = currentExerciseIndex,
