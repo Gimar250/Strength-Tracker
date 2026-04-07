@@ -49,7 +49,6 @@ fun ActiveWorkoutScreen(
         if (state is WorkoutScreenState.Finished) onWorkoutFinished()
     }
 
-    // Build progress items when sheet is open — recalculated on each open
     val progressItems = remember(showSheet, state) {
         if (showSheet) viewModel.buildProgressItems() else emptyList()
     }
@@ -73,10 +72,15 @@ fun ActiveWorkoutScreen(
             onSkip = viewModel::skipRest,
             onOpenProgress = viewModel::openProgressSheet
         )
+        // ── New Summary state ──
+        is WorkoutScreenState.Summary -> WorkoutSummaryScreen(
+            state = s,
+            onNotesChanged = viewModel::onNotesChanged,
+            onSaveAndFinish = viewModel::saveAndFinish
+        )
         is WorkoutScreenState.Finished -> LoadingScreen()
     }
 
-    // ── Progress overview sheet ─────────────────────────────────────────────
     if (showSheet) {
         ModalBottomSheet(
             onDismissRequest = viewModel::closeProgressSheet,

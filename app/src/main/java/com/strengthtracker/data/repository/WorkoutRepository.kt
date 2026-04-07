@@ -3,15 +3,18 @@ package com.strengthtracker.data.repository
 import com.strengthtracker.data.db.dao.ExerciseDao
 import com.strengthtracker.data.db.dao.HistoryLogDao
 import com.strengthtracker.data.db.dao.WorkoutDao
+import com.strengthtracker.data.db.dao.WorkoutSessionDao
 import com.strengthtracker.data.db.entity.Exercise
 import com.strengthtracker.data.db.entity.HistoryLog
 import com.strengthtracker.data.db.entity.Workout
+import com.strengthtracker.data.db.entity.WorkoutSession
 import kotlinx.coroutines.flow.Flow
 
 class WorkoutRepository(
     private val workoutDao: WorkoutDao,
     private val exerciseDao: ExerciseDao,
-    private val historyLogDao: HistoryLogDao
+    private val historyLogDao: HistoryLogDao,
+    private val workoutSessionDao: WorkoutSessionDao
 ) {
     // --- Workouts ---
     fun getAllWorkouts(): Flow<List<Workout>> = workoutDao.getAllWorkouts()
@@ -37,7 +40,7 @@ class WorkoutRepository(
         exerciseDao.getAllExercises().groupBy { it.workoutId }
     fun getAllExercisesFlow(): Flow<List<Exercise>> = exerciseDao.getAllExercisesFlow()
 
-    // --- History ---
+    // --- History Logs ---
     suspend fun saveWorkoutSession(logs: List<HistoryLog>) = historyLogDao.insertAll(logs)
     fun getLogsForExercise(exerciseId: Long): Flow<List<HistoryLog>> =
         historyLogDao.getLogsForExercise(exerciseId)
@@ -47,4 +50,12 @@ class WorkoutRepository(
         historyLogDao.getLastSessionForWorkout(workoutId)
     suspend fun getAllLogs(): List<HistoryLog> = historyLogDao.getAllLogs()
     fun getAllLogsFlow(): Flow<List<HistoryLog>> = historyLogDao.getAllLogsFlow()
+
+    // --- Workout Sessions ---
+    suspend fun insertWorkoutSession(session: WorkoutSession): Long =
+        workoutSessionDao.insertSession(session)
+    fun getAllSessionsFlow(): Flow<List<WorkoutSession>> =
+        workoutSessionDao.getAllSessions()
+    suspend fun getAllSessionsList(): List<WorkoutSession> =
+        workoutSessionDao.getAllSessionsList()
 }

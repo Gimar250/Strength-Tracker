@@ -80,10 +80,9 @@ fun HomeScreen(
         uri ?: return@rememberLauncherForActivityResult
         scope.launch(Dispatchers.IO) {
             try {
-                val workouts = uiState.workouts
-                val exercisesMap = repository.getAllExercisesGrouped()
+                val (sessions, workouts, exercisesMap) = viewModel.getDataForLogExport()
                 val logs = repository.getAllLogs()
-                CsvManager.exportLogs(context, uri, logs, workouts, exercisesMap)
+                CsvManager.exportLogs(context, uri, logs, workouts, exercisesMap, sessions)
                 viewModel.setSnackbarMessage("${logs.size} log entries exported")
             } catch (e: Exception) {
                 viewModel.setSnackbarMessage("Export failed: ${e.message}")

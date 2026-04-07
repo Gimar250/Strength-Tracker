@@ -89,12 +89,11 @@ class HomeViewModel(
         return Pair(workouts, exercisesMap)
     }
 
-    suspend fun getDataForLogExport(): Triple<List<Exercise>, List<Workout>, Map<Long, List<Exercise>>> {
-        val logs = repository.getAllLogs()
+    suspend fun getDataForLogExport(): Triple<List<com.strengthtracker.data.db.entity.WorkoutSession>, List<Workout>, Map<Long, List<Exercise>>> {
+        val sessions = repository.getAllSessionsList()
         val workouts = uiState.value.workouts
         val exercisesMap = repository.getAllExercisesGrouped()
-        // We pass logs through a different path; this just pre-fetches the lookup maps
-        return Triple(emptyList(), workouts, exercisesMap)
+        return Triple(sessions, workouts, exercisesMap)
     }
 
     // Called after the composable has parsed the CSV file

@@ -10,17 +10,19 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 import com.strengthtracker.data.db.dao.ExerciseDao
 import com.strengthtracker.data.db.dao.HistoryLogDao
 import com.strengthtracker.data.db.dao.WorkoutDao
+import com.strengthtracker.data.db.dao.WorkoutSessionDao
 import com.strengthtracker.data.db.entity.Exercise
 import com.strengthtracker.data.db.entity.ExerciseType
 import com.strengthtracker.data.db.entity.HistoryLog
 import com.strengthtracker.data.db.entity.Workout
+import com.strengthtracker.data.db.entity.WorkoutSession
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
 @Database(
-    entities = [Workout::class, Exercise::class, HistoryLog::class],
-    version = 3,
+    entities = [Workout::class, Exercise::class, HistoryLog::class, WorkoutSession::class],
+    version = 4,
     exportSchema = true
 )
 @TypeConverters(Converters::class)
@@ -29,12 +31,12 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun workoutDao(): WorkoutDao
     abstract fun exerciseDao(): ExerciseDao
     abstract fun historyLogDao(): HistoryLogDao
+    abstract fun workoutSessionDao(): WorkoutSessionDao
 
     companion object {
         @Volatile
         private var INSTANCE: AppDatabase? = null
 
-        // v1 → v2: added targetWeightKg and targetReps to exercises
         private val MIGRATION_1_2 = object : Migration(1, 2) {
             override fun migrate(database: SupportSQLiteDatabase) {
                 database.execSQL("ALTER TABLE exercises ADD COLUMN targetWeightKg REAL")
@@ -42,7 +44,6 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
-        // v2 → v3: added exerciseType to exercises, orderIndex to workouts
         private val MIGRATION_2_3 = object : Migration(2, 3) {
             override fun migrate(database: SupportSQLiteDatabase) {
                 database.execSQL(
@@ -54,6 +55,25 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        private val MIGRATION_3_4 = object : Migration(3, 4) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                database.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS workout_sessions (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        workoutId INTEGER NOT NULL,
+                        workoutName TEXT NOT NULL,
+                        startTimestamp INTEGER NOT NULL,
+                        durationSeconds INTEGER NOT NULL,
+                        notes TEXT NOT NULL DEFAULT '',
+                        completedSets INTEGER NOT NULL,
+                        totalSets INTEGER NOT NULL
+                    )
+                    """.trimIndent()
+                )
+            }
+        }
+
         fun getInstance(context: Context): AppDatabase {
             return INSTANCE ?: synchronized(this) {
                 Room.databaseBuilder(
@@ -61,7 +81,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "strength_tracker.db"
                 )
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
                     .addCallback(SeedCallback())
                     .build()
                     .also { INSTANCE = it }

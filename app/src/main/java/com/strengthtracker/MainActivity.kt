@@ -58,7 +58,8 @@ class MainActivity : ComponentActivity() {
         val repository = WorkoutRepository(
             workoutDao    = db.workoutDao(),
             exerciseDao   = db.exerciseDao(),
-            historyLogDao = db.historyLogDao()
+            historyLogDao = db.historyLogDao(),
+            workoutSessionDao = db.workoutSessionDao()
         )
 
         setContent {

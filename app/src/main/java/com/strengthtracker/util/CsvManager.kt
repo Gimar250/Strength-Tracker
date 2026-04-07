@@ -6,16 +6,17 @@ import com.strengthtracker.data.db.entity.Exercise
 import com.strengthtracker.data.db.entity.ExerciseType
 import com.strengthtracker.data.db.entity.HistoryLog
 import com.strengthtracker.data.db.entity.Workout
+import com.strengthtracker.data.db.entity.WorkoutSession
 import java.io.BufferedReader
 import java.io.InputStreamReader
 import java.text.SimpleDateFormat
-import java.util.*
+import java.util.Calendar
+import java.util.Date
+import java.util.Locale
 
 object CsvManager {
 
     private val dateFormat = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault())
-
-    // ── Export ──────────────────────────────────────────────────────────────
 
     fun exportWorkouts(
         context: Context,
@@ -55,19 +56,32 @@ object CsvManager {
         uri: Uri,
         logs: List<HistoryLog>,
         workouts: List<Workout>,
-        exercisesByWorkout: Map<Long, List<Exercise>>
+        exercisesByWorkout: Map<Long, List<Exercise>>,
+        sessions: List<WorkoutSession>      // ← new parameter
     ) {
         val workoutMap = workouts.associateBy { it.id }
         val exerciseMap = exercisesByWorkout.values.flatten().associateBy { it.id }
 
+        // Build session index by "workoutId-year-dayOfYear" for fast note lookup
+        val sessionIndex = sessions.associateBy { session ->
+            val cal = Calendar.getInstance().apply { timeInMillis = session.startTimestamp }
+            "${session.workoutId}-${cal.get(Calendar.YEAR)}-${cal.get(Calendar.DAY_OF_YEAR)}"
+        }
+
         context.contentResolver.openOutputStream(uri)?.use { stream ->
             val writer = stream.bufferedWriter()
-            writer.write("workout_name,exercise_name,exercise_type,set_number,weight_kg,reps_or_seconds,timestamp\n")
+            writer.write("workout_name,exercise_name,exercise_type,set_number,weight_kg,reps_or_seconds,timestamp,duration_seconds,session_notes\n")
             logs.forEach { log ->
                 val workoutName = workoutMap[log.workoutId]?.name ?: "Unknown"
                 val exercise = exerciseMap[log.exerciseId]
                 val exerciseName = exercise?.name ?: "Unknown"
                 val exerciseType = exercise?.exerciseType?.name ?: "REPS"
+
+                // Find matching session for this log's day
+                val cal = Calendar.getInstance().apply { timeInMillis = log.timestamp }
+                val key = "${log.workoutId}-${cal.get(Calendar.YEAR)}-${cal.get(Calendar.DAY_OF_YEAR)}"
+                val session = sessionIndex[key]
+
                 writer.write(
                     "${workoutName.escapeCsv()}," +
                             "${exerciseName.escapeCsv()}," +
@@ -75,14 +89,16 @@ object CsvManager {
                             "${log.setNumber}," +
                             "${log.weightKg}," +
                             "${log.reps}," +
-                            "${dateFormat.format(Date(log.timestamp))}\n"
+                            "${dateFormat.format(Date(log.timestamp))}," +
+                            "${session?.durationSeconds ?: ""}," +
+                            "${(session?.notes ?: "").escapeCsv()}\n"
                 )
             }
             writer.flush()
         }
     }
 
-    // ── Import ──────────────────────────────────────────────────────────────
+    // ── Import (unchanged) ───────────────────────────────────────────────────
 
     data class ImportedExercise(
         val name: String,
@@ -103,10 +119,9 @@ object CsvManager {
     fun importWorkouts(context: Context, uri: Uri): List<ImportedWorkout> {
         val rows = mutableMapOf<String, MutableList<ImportedExercise>>()
         val workoutOrders = mutableMapOf<String, Int>()
-
         context.contentResolver.openInputStream(uri)?.use { stream ->
             val reader = BufferedReader(InputStreamReader(stream))
-            reader.readLine() // skip header
+            reader.readLine()
             var line = reader.readLine()
             while (line != null) {
                 val cols = line.parseCsvLine()
@@ -115,7 +130,6 @@ object CsvManager {
                     val workoutOrder = cols.getOrNull(1)?.trim()?.toIntOrNull() ?: 0
                     workoutOrders[workoutName] = workoutOrder
                     if (!rows.containsKey(workoutName)) rows[workoutName] = mutableListOf()
-
                     val exerciseName = cols.getOrNull(2)?.trim() ?: ""
                     if (exerciseName.isNotBlank()) {
                         rows[workoutName]!!.add(
@@ -136,7 +150,6 @@ object CsvManager {
                 line = reader.readLine()
             }
         }
-
         return rows.map { (name, exercises) ->
             ImportedWorkout(
                 name = name,
@@ -145,8 +158,6 @@ object CsvManager {
             )
         }.sortedBy { it.orderIndex }
     }
-
-    // ── Helpers ─────────────────────────────────────────────────────────────
 
     private fun String.escapeCsv(): String =
         if (contains(',') || contains('"') || contains('\n'))
