@@ -51,6 +51,12 @@ class WorkoutRepository(
     suspend fun getAllLogs(): List<HistoryLog> = historyLogDao.getAllLogs()
     fun getAllLogsFlow(): Flow<List<HistoryLog>> = historyLogDao.getAllLogsFlow()
 
+    // Get the best reps from the most recent workout session for a given exercise
+    suspend fun getBestRepsFromLastWorkout(exerciseId: Long): Int? {
+        val workoutId = historyLogDao.getMostRecentWorkoutIdForExercise(exerciseId) ?: return null
+        return historyLogDao.getMaxRepsForExerciseInWorkout(exerciseId, workoutId)
+    }
+
     // --- Workout Sessions ---
     suspend fun insertWorkoutSession(session: WorkoutSession): Long =
         workoutSessionDao.insertSession(session)

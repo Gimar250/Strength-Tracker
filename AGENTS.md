@@ -27,6 +27,7 @@ app/src/main/java/com/strengthtracker/
 Open in Android Studio and run. No CLI build needed in daily workflow.
 
 Gradle versions in `gradle/libs.versions.toml` — keep AGP/Kotlin/KSP versions in sync when updating.
+Compose BOM version is in `app/build.gradle.kts` (not libs.versions.toml).
 
 ## KSP caveat
 

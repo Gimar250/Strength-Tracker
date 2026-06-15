@@ -31,4 +31,12 @@ interface HistoryLogDao {
     // Live flow of all logs — used by HistoryViewModel
     @Query("SELECT * FROM history_logs ORDER BY timestamp DESC")
     fun getAllLogsFlow(): Flow<List<HistoryLog>>
+
+    // Get the most recent workout ID for a given exercise
+    @Query("SELECT workoutId FROM history_logs WHERE exerciseId = :exerciseId ORDER BY timestamp DESC LIMIT 1")
+    suspend fun getMostRecentWorkoutIdForExercise(exerciseId: Long): Long?
+
+    // Get the best reps value from a specific workout for a specific exercise
+    @Query("SELECT MAX(reps) FROM history_logs WHERE exerciseId = :exerciseId AND workoutId = :workoutId")
+    suspend fun getMaxRepsForExerciseInWorkout(exerciseId: Long, workoutId: Long): Int?
 }

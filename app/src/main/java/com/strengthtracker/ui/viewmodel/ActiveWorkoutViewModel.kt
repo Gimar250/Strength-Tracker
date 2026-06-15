@@ -51,6 +51,7 @@ sealed class WorkoutScreenState {
         val totalSets: Int,
         val weightKg: String = "",
         val reps: String = "",
+        val bestRepsLastWorkout: Int? = null,
         val stopwatchSeconds: Int = 0,
         val isStopwatchRunning: Boolean = false
     ) : WorkoutScreenState()
@@ -255,7 +256,7 @@ class ActiveWorkoutViewModel(
 
     fun skipRest() {
         timerJob?.cancel()
-        advanceWorkout()
+        viewModelScope.launch { advanceWorkout() }
     }
 
     // ---------------------------------------------------------------------------
@@ -329,7 +330,7 @@ class ActiveWorkoutViewModel(
         }
     }
 
-    private fun advanceWorkout() {
+    private suspend fun advanceWorkout() {
         val exercise = exercises[currentExerciseIndex]
         when {
             currentSet < exercise.numberOfSets -> { currentSet++; emitActiveSetState() }
@@ -340,10 +341,16 @@ class ActiveWorkoutViewModel(
         }
     }
 
-    private fun emitActiveSetState() {
+    private suspend fun emitActiveSetState() {
         stopwatchJob?.cancel()
         val exercise = exercises[currentExerciseIndex]
-        val lastLog = sessionLogs.filter { it.exerciseId == exercise.id }.lastOrNull()
+        val exerciseLogs = sessionLogs.filter { it.exerciseId == exercise.id }
+        val lastLog = exerciseLogs.lastOrNull()
+        
+        val bestRepsLastWorkout = if (currentSet == 1 && exerciseLogs.isEmpty()) {
+            repository.getBestRepsFromLastWorkout(exercise.id)
+        } else null
+        
         _state.value = WorkoutScreenState.ActiveSet(
             exercise = exercise,
             exerciseIndex = currentExerciseIndex,
@@ -351,9 +358,24 @@ class ActiveWorkoutViewModel(
             currentSet = currentSet,
             totalSets = exercise.numberOfSets,
             weightKg = lastLog?.weightKg?.let { if (it == 0f) "" else it.toString() } ?: "",
-            reps = if (exercise.exerciseType == ExerciseType.REPS)
-                lastLog?.reps?.let { if (it == 0) "" else it.toString() } ?: ""
-            else "",
+            reps = when {
+                exercise.exerciseType != ExerciseType.REPS -> ""
+                lastLog != null -> {
+                    // Subsequent set: use previous set's reps from current session
+                    val r = lastLog.reps
+                    if (r == 0) "" else r.toString()
+                }
+                bestRepsLastWorkout != null -> {
+                    // First set: use best reps from last workout
+                    bestRepsLastWorkout.toString()
+                }
+                exercise.targetReps != null -> {
+                    // First set: no history, use target reps
+                    exercise.targetReps.toString()
+                }
+                else -> ""
+            },
+            bestRepsLastWorkout = bestRepsLastWorkout,
             stopwatchSeconds = 0,
             isStopwatchRunning = false
         )
