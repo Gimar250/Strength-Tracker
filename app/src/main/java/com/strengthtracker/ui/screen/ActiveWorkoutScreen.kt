@@ -406,7 +406,7 @@ private fun ActiveSetScreen(
         verticalArrangement = Arrangement.SpaceBetween
     ) {
         // ── Top: Exercise info + progress button ────────────────────────────
-        Column(modifier = Modifier.padding(top = 24.dp)) {
+        Column {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
@@ -585,8 +585,7 @@ fun RestTimerScreen(
     ) {
         // ── Top: label + progress button ────────────────────────────────────
           Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                modifier = Modifier.padding(top = 48.dp)
+                horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
