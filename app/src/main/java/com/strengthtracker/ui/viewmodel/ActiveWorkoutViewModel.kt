@@ -318,6 +318,9 @@ class ActiveWorkoutViewModel(
                 _state.update {
                     (it as? WorkoutScreenState.Resting)?.copy(secondsRemaining = remaining) ?: it
                 }
+                if (remaining == 10){
+                    SoundPlayer.playRestPrepareBeep()
+                }
                 delay(1_000)
             }
             SoundPlayer.playRestEndBeep()

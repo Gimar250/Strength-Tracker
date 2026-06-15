@@ -28,4 +28,23 @@ object SoundPlayer {
             e.printStackTrace()
         }
     }
+
+    fun playRestPrepareBeep() {
+        try {
+            // STREAM_ALARM asegura que suene incluso en modo silencio
+            val toneGen = ToneGenerator(AudioManager.STREAM_ALARM, VOLUME)
+
+            // TONE_PROP_BEEP genera un único pitido estándar del sistema
+            toneGen.startTone(ToneGenerator.TONE_PROP_BEEP, BEEP_DURATION_MS)
+
+            // Se liberan los recursos justo después de que termine de sonar
+            android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                toneGen.release()
+            }, (BEEP_DURATION_MS + 100).toLong())
+
+        } catch (e: Exception) {
+            // Evita cierres inesperados en dispositivos que no soportan ToneGenerator
+            e.printStackTrace()
+        }
+    }
 }
