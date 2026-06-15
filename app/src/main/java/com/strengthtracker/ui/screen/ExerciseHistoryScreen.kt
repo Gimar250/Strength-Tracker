@@ -254,7 +254,7 @@ private fun ChartSection(
                         horizontalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
                         ChartToggleChip(
-                            label = "WEIGHT",
+                            label = "VOL",
                             selected = showWeight,
                             onClick = { if (!showWeight) onToggle() }
                         )
@@ -328,8 +328,8 @@ private fun ProgressLineChart(
     showWeight: Boolean,
     modifier: Modifier = Modifier
 ) {
-    val values = if (showWeight) points.map { it.maxWeight }
-    else points.map { it.maxValue.toFloat() }
+    val values = if (showWeight) points.map { it.totalWeight }
+    else points.map { it.totalValue.toFloat() }
 
     val rawMin = values.minOrNull() ?: 0f
     val rawMax = values.maxOrNull() ?: 1f
@@ -380,7 +380,7 @@ private fun ProgressLineChart(
                     )
 
                     val label = if (showWeight) {
-                        if (gridVal % 1 == 0f) "${gridVal.toInt()}kg" else "%.1fkg".format(gridVal)
+                        if (gridVal % 1 == 0f) "${gridVal.toInt()}" else "%.1f".format(gridVal)
                     } else {
                         "${gridVal.toInt()}"
                     }
@@ -398,7 +398,7 @@ private fun ProgressLineChart(
                 if (points.size >= 2) {
                     val path = Path()
                     points.forEachIndexed { i, point ->
-                        val v = if (showWeight) point.maxWeight else point.maxValue.toFloat()
+                        val v = if (showWeight) point.totalWeight else point.totalValue.toFloat()
                         val px = leftPad + i.toFloat() / (points.size - 1) * chartW
                         val py = topPad + (1f - (v - minVal) / range) * chartH
                         if (i == 0) path.moveTo(px, py) else path.lineTo(px, py)
@@ -424,7 +424,7 @@ private fun ProgressLineChart(
                 textPaint.color = secondaryArgb
 
                 points.forEachIndexed { i, point ->
-                    val v = if (showWeight) point.maxWeight else point.maxValue.toFloat()
+                    val v = if (showWeight) point.totalWeight else point.totalValue.toFloat()
                     val xFrac = if (points.size > 1) i.toFloat() / (points.size - 1) else 0.5f
                     val px = leftPad + xFrac * chartW
                     val py = topPad + (1f - (v - minVal) / range) * chartH

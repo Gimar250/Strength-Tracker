@@ -23,7 +23,9 @@ data class ProgressPoint(
     val timestamp: Long,
     val dateLabel: String,
     val maxWeight: Float,
-    val maxValue: Int,   // max reps or max seconds depending on type
+    val totalWeight: Float,   // sum of weightKg × reps across all sets that day
+    val maxValue: Int,
+    val totalValue: Int,      // sum of reps across all sets that day
     val totalSets: Int
 )
 
@@ -93,7 +95,9 @@ class ExerciseHistoryViewModel(
                 timestamp = ts,
                 dateLabel = shortFmt.format(java.util.Date(ts)),
                 maxWeight = dayLogs.maxOf { it.weightKg },
+                totalWeight = dayLogs.sumOf { it.weightKg.toDouble() * it.reps }.toFloat(),
                 maxValue = dayLogs.maxOf { it.reps },
+                totalValue = dayLogs.sumOf { it.reps },
                 totalSets = dayLogs.size
             )
         }
