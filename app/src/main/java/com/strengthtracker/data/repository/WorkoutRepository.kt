@@ -57,6 +57,9 @@ class WorkoutRepository(
         return historyLogDao.getMaxRepsForExerciseInWorkout(exerciseId, workoutId)
     }
 
+    suspend fun updateSetLog(logId: Long, weightKg: Float, reps: Int) =
+        historyLogDao.updateLog(logId, weightKg, reps)
+
     // --- Workout Sessions ---
     suspend fun insertWorkoutSession(session: WorkoutSession): Long =
         workoutSessionDao.insertSession(session)

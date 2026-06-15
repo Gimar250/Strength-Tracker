@@ -6,6 +6,8 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.FormatListBulleted
+import androidx.compose.material.icons.filled.NavigateNext
+import androidx.compose.material.icons.filled.NavigateBefore
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -60,12 +62,18 @@ fun ActiveWorkoutScreen(
             onWeightChanged = viewModel::onWeightChanged,
             onRepsChanged = viewModel::onRepsChanged,
             onCompleteSet = viewModel::completeSet,
+            onModifySet = viewModel::onModifySet,
             onSkipSet = viewModel::skipSet,
             onToggleStopwatch = viewModel::toggleStopwatch,
             onResetStopwatch = viewModel::resetStopwatch,
             onSetStopwatchSeconds = viewModel::setStopwatchSeconds,
             isSetCompletable = viewModel.isSetCompletable(),
-            onOpenProgress = viewModel::openProgressSheet
+            isSetAlreadyRegistered = viewModel.isSetAlreadyRegistered(),
+            onOpenProgress = viewModel::openProgressSheet,
+            onBackNavigation = viewModel::onBackNavigation,
+            onForwardNavigation = viewModel::onForwardNavigation,
+            canNavigateBack = viewModel.isBackNavigationAvailable(),
+            canNavigateForward = viewModel.isForwardNavigationAvailable()
         )
         is WorkoutScreenState.Resting -> RestTimerScreen(
             state = s,
@@ -374,12 +382,18 @@ private fun ActiveSetScreen(
     onWeightChanged: (String) -> Unit,
     onRepsChanged: (String) -> Unit,
     onCompleteSet: () -> Unit,
+    onModifySet: (String, String) -> Unit,
     onSkipSet: () -> Unit,
     onToggleStopwatch: () -> Unit,
     onResetStopwatch: () -> Unit,
     onSetStopwatchSeconds: (Int) -> Unit,
     isSetCompletable: Boolean,
-    onOpenProgress: () -> Unit
+    isSetAlreadyRegistered: Boolean,
+    onOpenProgress: () -> Unit,
+    onBackNavigation: () -> Unit,
+    onForwardNavigation: () -> Unit,
+    canNavigateBack: Boolean,
+    canNavigateForward: Boolean
 ) {
     val isTimed = state.exercise.exerciseType == ExerciseType.TIMED
     val weightFocusRequester = remember { FocusRequester() }
@@ -399,6 +413,18 @@ private fun ActiveSetScreen(
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
+                    // Back arrow
+                    IconButton(
+                        onClick = onBackNavigation,
+                        enabled = canNavigateBack
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.NavigateBefore,
+                            contentDescription = "Back to previous set",
+                            tint = if (canNavigateBack) MaterialTheme.colorScheme.secondary
+                            else MaterialTheme.colorScheme.outline
+                        )
+                    }
                     Text(
                         text = "EXERCISE ${state.exerciseIndex + 1} / ${state.totalExercises}",
                         style = MaterialTheme.typography.bodyMedium,
@@ -417,13 +443,27 @@ private fun ActiveSetScreen(
                         )
                     }
                 }
-                // Progress overview button
-                IconButton(onClick = onOpenProgress) {
-                    Icon(
-                        imageVector = Icons.Default.FormatListBulleted,
-                        contentDescription = "Workout progress",
-                        tint = MaterialTheme.colorScheme.secondary
-                    )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    // Forward arrow
+                    IconButton(
+                        onClick = onForwardNavigation,
+                        enabled = canNavigateForward
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.NavigateNext,
+                            contentDescription = "Forward to next set",
+                            tint = if (canNavigateForward) MaterialTheme.colorScheme.secondary
+                            else MaterialTheme.colorScheme.outline
+                        )
+                    }
+                    // Progress overview button
+                    IconButton(onClick = onOpenProgress) {
+                        Icon(
+                            imageVector = Icons.Default.FormatListBulleted,
+                            contentDescription = "Workout progress",
+                            tint = MaterialTheme.colorScheme.secondary
+                        )
+                    }
                 }
             }
 
@@ -475,7 +515,13 @@ private fun ActiveSetScreen(
         Column(modifier = Modifier.padding(bottom = 32.dp)) {
             if (isSetCompletable) {
                 Button(
-                    onClick = onCompleteSet,
+                    onClick = {
+                        if (isSetAlreadyRegistered) {
+                            onModifySet(state.weightKg, state.reps)
+                        } else {
+                            onCompleteSet()
+                        }
+                    },
                     modifier = Modifier.fillMaxWidth().height(72.dp),
                     colors = ButtonDefaults.buttonColors(
                         containerColor = MaterialTheme.colorScheme.primary,
@@ -483,7 +529,10 @@ private fun ActiveSetScreen(
                     ),
                     shape = MaterialTheme.shapes.medium
                 ) {
-                    Text("COMPLETE SET", style = MaterialTheme.typography.labelLarge)
+                    Text(
+                        if (isSetAlreadyRegistered) "MODIFY SET" else "COMPLETE SET",
+                        style = MaterialTheme.typography.labelLarge
+                    )
                 }
             } else {
                 OutlinedButton(
@@ -535,36 +584,36 @@ fun RestTimerScreen(
         verticalArrangement = Arrangement.SpaceBetween
     ) {
         // ── Top: label + progress button ────────────────────────────────────
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            modifier = Modifier.padding(top = 48.dp)
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+          Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier.padding(top = 48.dp)
             ) {
-                Spacer(Modifier.width(48.dp)) // balance the icon on the right
-                Text(
-                    text = "REST",
-                    style = MaterialTheme.typography.titleLarge,
-                    color = MaterialTheme.colorScheme.secondary
-                )
-                IconButton(onClick = onOpenProgress) {
-                    Icon(
-                        imageVector = Icons.Default.FormatListBulleted,
-                        contentDescription = "Workout progress",
-                        tint = MaterialTheme.colorScheme.secondary
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Spacer(Modifier.width(48.dp)) // balance the icon on the right
+                    Text(
+                        text = "REST",
+                        style = MaterialTheme.typography.titleLarge,
+                        color = MaterialTheme.colorScheme.secondary
                     )
+                    IconButton(onClick = onOpenProgress) {
+                        Icon(
+                            imageVector = Icons.Default.FormatListBulleted,
+                            contentDescription = "Workout progress",
+                            tint = MaterialTheme.colorScheme.secondary
+                        )
+                    }
                 }
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    text = "Next: ${state.nextExercise.name.uppercase()}",
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onBackground
+                )
             }
-            Spacer(Modifier.height(4.dp))
-            Text(
-                text = "Next: ${state.nextExercise.name.uppercase()}",
-                style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onBackground
-            )
-        }
 
         // ── Middle: arc countdown ───────────────────────────────────────────
         Box(

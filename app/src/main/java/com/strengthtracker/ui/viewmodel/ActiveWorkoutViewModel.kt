@@ -99,6 +99,8 @@ class ActiveWorkoutViewModel(
     private var startTimestamp: Long = 0L
     private var timerJob: Job? = null
     private var stopwatchJob: Job? = null
+    private var backExerciseIndex = 0
+    private var backSet = 1
 
     init { loadWorkout() }
 
@@ -130,11 +132,19 @@ class ActiveWorkoutViewModel(
             is WorkoutScreenState.ActiveSet -> currentSet
             else -> currentSet
         }
+        val isNavigatingBack = backExerciseIndex != 0 || backSet != 1
         return exercises.mapIndexed { exIndex, exercise ->
             val logsForExercise = sessionLogs.filter { it.exerciseId == exercise.id }
             val sets = (1..exercise.numberOfSets).map { setNum ->
                 val log = logsForExercise.find { it.setNumber == setNum }
+                val isAfterNavigation = when {
+                    isNavigatingBack && exIndex < backExerciseIndex -> true
+                    isNavigatingBack && exIndex == backExerciseIndex && setNum <= backSet -> false
+                    isNavigatingBack && exIndex == backExerciseIndex && setNum > backSet -> true
+                    else -> false
+                }
                 val status = when {
+                    isAfterNavigation -> SetStatus.PENDING
                     log != null -> SetStatus.COMPLETED
                     exIndex == activeExerciseIndex && setNum == activeSet &&
                             _state.value is WorkoutScreenState.ActiveSet -> SetStatus.CURRENT
@@ -226,18 +236,37 @@ class ActiveWorkoutViewModel(
         if (!isSetCompletable()) { skipSet(); return }
         stopwatchJob?.cancel()
 
-        sessionLogs.add(
-            HistoryLog(
-                exerciseId = s.exercise.id,
-                workoutId = workoutId,
-                setNumber = currentSet,
-                weightKg = s.weightKg.toFloatOrNull() ?: 0f,
-                reps = when (s.exercise.exerciseType) {
-                    ExerciseType.REPS -> s.reps.toIntOrNull() ?: 0
-                    ExerciseType.TIMED -> s.stopwatchSeconds
-                }
+        val weightKg = s.weightKg.toFloatOrNull() ?: 0f
+        val repsValue = when (s.exercise.exerciseType) {
+            ExerciseType.REPS -> s.reps.toIntOrNull() ?: 0
+            ExerciseType.TIMED -> s.stopwatchSeconds
+        }
+        val existingLog = sessionLogs.find { it.exerciseId == s.exercise.id && it.setNumber == currentSet }
+        if (existingLog != null) {
+            sessionLogs.removeAll { it.exerciseId == s.exercise.id && it.setNumber == currentSet }
+            sessionLogs.add(
+                HistoryLog(
+                    id = existingLog.id,
+                    exerciseId = s.exercise.id,
+                    workoutId = workoutId,
+                    setNumber = currentSet,
+                    weightKg = weightKg,
+                    reps = repsValue,
+                    timestamp = System.currentTimeMillis()
+                )
             )
-        )
+        } else {
+            sessionLogs.add(
+                HistoryLog(
+                    exerciseId = s.exercise.id,
+                    workoutId = workoutId,
+                    setNumber = currentSet,
+                    weightKg = weightKg,
+                    reps = repsValue,
+                    timestamp = System.currentTimeMillis()
+                )
+            )
+        }
 
         val isLastSet = currentSet >= s.exercise.numberOfSets
         val isLastExercise = currentExerciseIndex >= exercises.size - 1
@@ -248,6 +277,21 @@ class ActiveWorkoutViewModel(
     fun skipSet() {
         val s = _state.value as? WorkoutScreenState.ActiveSet ?: return
         stopwatchJob?.cancel()
+        val existingLog = sessionLogs.find { it.exerciseId == s.exercise.id && it.setNumber == currentSet }
+        if (existingLog != null) {
+            sessionLogs.removeAll { it.exerciseId == s.exercise.id && it.setNumber == currentSet }
+            sessionLogs.add(
+                HistoryLog(
+                    id = existingLog.id,
+                    exerciseId = s.exercise.id,
+                    workoutId = workoutId,
+                    setNumber = currentSet,
+                    weightKg = 0f,
+                    reps = 0,
+                    timestamp = System.currentTimeMillis()
+                )
+            )
+        }
         val isLastSet = currentSet >= s.exercise.numberOfSets
         val isLastExercise = currentExerciseIndex >= exercises.size - 1
         if (isLastSet && isLastExercise) { showSummary(); return }
@@ -257,6 +301,122 @@ class ActiveWorkoutViewModel(
     fun skipRest() {
         timerJob?.cancel()
         viewModelScope.launch { advanceWorkout() }
+    }
+
+    // ---------------------------------------------------------------------------
+    // Navigation
+    // ---------------------------------------------------------------------------
+
+    fun isSetAlreadyRegistered(): Boolean {
+        val s = _state.value as? WorkoutScreenState.ActiveSet ?: return false
+        return sessionLogs.any { it.exerciseId == s.exercise.id && it.setNumber == currentSet }
+    }
+
+    fun onBackNavigation() {
+        stopwatchJob?.cancel()
+        timerJob?.cancel()
+        viewModelScope.launch {
+            if (currentSet > 1) {
+                currentSet--
+            } else if (currentExerciseIndex > 0) {
+                currentExerciseIndex--
+                val prevExercise = exercises[currentExerciseIndex]
+                currentSet = prevExercise.numberOfSets
+            }
+            backExerciseIndex = currentExerciseIndex
+            backSet = currentSet
+            emitActiveSetState()
+        }
+    }
+
+    fun onForwardNavigation() {
+        stopwatchJob?.cancel()
+        timerJob?.cancel()
+        viewModelScope.launch {
+            val s = _state.value as? WorkoutScreenState.ActiveSet ?: return@launch
+            val currentExercise = exercises[currentExerciseIndex]
+            val isCurrentSetRegistered = sessionLogs.any { 
+                it.exerciseId == currentExercise.id && it.setNumber == currentSet 
+            }
+            
+            // If the current set is already registered, just move to next set/exercise without modifying anything
+            if (isCurrentSetRegistered) {
+                if (currentSet < s.exercise.numberOfSets) {
+                    currentSet++
+                } else if (currentExerciseIndex < exercises.size - 1) {
+                    currentExerciseIndex++
+                    currentSet = 1
+                } else {
+                    showSummary()
+                    return@launch
+                }
+                emitActiveSetState()
+                return@launch
+            }
+            
+            // Current set is not registered, skip it and remove its log
+            sessionLogs.removeAll { log ->
+                log.exerciseId == currentExercise.id && log.setNumber == currentSet
+            }
+            
+            if (currentSet < s.exercise.numberOfSets) {
+                currentSet++
+            } else if (currentExerciseIndex < exercises.size - 1) {
+                currentExerciseIndex++
+                currentSet = 1
+            } else {
+                showSummary()
+                return@launch
+            }
+            backExerciseIndex = currentExerciseIndex
+            backSet = currentSet
+            
+            emitActiveSetState()
+        }
+    }
+
+    fun isBackNavigationAvailable(): Boolean {
+        val s = _state.value as? WorkoutScreenState.ActiveSet ?: return false
+        val isNotFirstExercise = currentExerciseIndex > 0
+        val isNotFirstSet = currentSet > 1
+        return isNotFirstExercise || isNotFirstSet
+    }
+
+    fun onModifySet(weight: String, reps: String) {
+        val s = _state.value as? WorkoutScreenState.ActiveSet ?: return
+        stopwatchJob?.cancel()
+        val isTimed = s.exercise.exerciseType == ExerciseType.TIMED
+        val weightKg = weight.toFloatOrNull() ?: 0f
+        val repsValue = if (isTimed) s.stopwatchSeconds else (reps.toIntOrNull() ?: 0)
+        val existingLog = sessionLogs.find { it.exerciseId == s.exercise.id && it.setNumber == currentSet }
+        if (existingLog != null) {
+            viewModelScope.launch {
+                repository.updateSetLog(existingLog.id, weightKg, repsValue)
+            }
+        }
+        sessionLogs.removeAll { it.exerciseId == s.exercise.id && it.setNumber == currentSet }
+        sessionLogs.add(
+            HistoryLog(
+                id = existingLog?.id ?: 0,
+                exerciseId = s.exercise.id,
+                workoutId = workoutId,
+                setNumber = currentSet,
+                weightKg = weightKg,
+                reps = repsValue,
+                timestamp = System.currentTimeMillis()
+            )
+        )
+        val isLastSet = currentSet >= s.exercise.numberOfSets
+        val isLastExercise = currentExerciseIndex >= exercises.size - 1
+        if (isLastSet && isLastExercise) { showSummary(); return }
+        startRestTimer(s.exercise)
+    }
+
+    fun isForwardNavigationAvailable(): Boolean {
+        val s = _state.value as? WorkoutScreenState.ActiveSet ?: return false
+        val isNotLastExercise = currentExerciseIndex < exercises.size - 1
+        val isNotLastSet = currentSet < s.exercise.numberOfSets
+        return isNotLastExercise || isNotLastSet
     }
 
     // ---------------------------------------------------------------------------
@@ -345,10 +505,14 @@ class ActiveWorkoutViewModel(
         stopwatchJob?.cancel()
         val exercise = exercises[currentExerciseIndex]
         val exerciseLogs = sessionLogs.filter { it.exerciseId == exercise.id }
-        val lastLog = exerciseLogs.lastOrNull()
+        val log = exerciseLogs.find { it.setNumber == currentSet }
         
         val bestRepsLastWorkout = if (currentSet == 1 && exerciseLogs.isEmpty()) {
             repository.getBestRepsFromLastWorkout(exercise.id)
+        } else null
+        
+        val prevSetLog = if (currentSet > 1) {
+            exerciseLogs.find { it.setNumber == currentSet - 1 }
         } else null
         
         _state.value = WorkoutScreenState.ActiveSet(
@@ -357,12 +521,17 @@ class ActiveWorkoutViewModel(
             totalExercises = exercises.size,
             currentSet = currentSet,
             totalSets = exercise.numberOfSets,
-            weightKg = lastLog?.weightKg?.let { if (it == 0f) "" else it.toString() } ?: "",
+            weightKg = log?.weightKg?.let { if (it == 0f) "" else it.toString() } 
+                ?: prevSetLog?.weightKg?.let { if (it == 0f) "" else it.toString() } 
+                ?: "",
             reps = when {
                 exercise.exerciseType != ExerciseType.REPS -> ""
-                lastLog != null -> {
-                    // Subsequent set: use previous set's reps from current session
-                    val r = lastLog.reps
+                log != null -> {
+                    val r = log.reps
+                    if (r == 0) "" else r.toString()
+                }
+                currentSet > 1 -> {
+                    val r = prevSetLog?.reps ?: 0
                     if (r == 0) "" else r.toString()
                 }
                 bestRepsLastWorkout != null -> {
