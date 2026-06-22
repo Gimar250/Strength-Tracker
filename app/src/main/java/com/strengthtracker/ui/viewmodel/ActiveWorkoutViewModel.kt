@@ -8,12 +8,14 @@ import com.strengthtracker.data.db.entity.ExerciseType
 import com.strengthtracker.data.db.entity.HistoryLog
 import com.strengthtracker.data.db.entity.WorkoutSession
 import com.strengthtracker.data.repository.WorkoutRepository
+import com.strengthtracker.util.SettingsRepository
 import com.strengthtracker.util.SoundPlayer
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
@@ -82,7 +84,8 @@ sealed class WorkoutScreenState {
 
 class ActiveWorkoutViewModel(
     private val repository: WorkoutRepository,
-    private val workoutId: Long
+    private val workoutId: Long,
+    private val context: android.content.Context
 ) : ViewModel() {
 
     private val _state = MutableStateFlow<WorkoutScreenState>(WorkoutScreenState.Loading)
@@ -475,16 +478,28 @@ class ActiveWorkoutViewModel(
         )
         timerJob?.cancel()
         timerJob = viewModelScope.launch {
+            val volume = SettingsRepository.volumeFlow(context).first()
+            val beepDuration = SettingsRepository.beepDurationFlow(context).first()
+            val prepareBeepEnabled = SettingsRepository.prepareBeepEnabledFlow(context).first()
+            val endBeepEnabled = SettingsRepository.endBeepEnabledFlow(context).first()
             for (remaining in currentExercise.restInSeconds downTo 1) {
                 _state.update {
                     (it as? WorkoutScreenState.Resting)?.copy(secondsRemaining = remaining) ?: it
                 }
                 if (remaining == 10){
-                    SoundPlayer.playRestPrepareBeep()
+                    SoundPlayer.playRestPrepareBeep(
+                        volume = volume,
+                        beepDurationMs = beepDuration,
+                        enabled = prepareBeepEnabled
+                    )
                 }
                 delay(1_000)
             }
-            SoundPlayer.playRestEndBeep()
+            SoundPlayer.playRestEndBeep(
+                volume = volume,
+                beepDurationMs = beepDuration,
+                enabled = endBeepEnabled
+            )
             delay(500)
             advanceWorkout()
         }
@@ -558,10 +573,11 @@ class ActiveWorkoutViewModel(
 
     class Factory(
         private val repository: WorkoutRepository,
-        private val workoutId: Long
+        private val workoutId: Long,
+        private val context: android.content.Context
     ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T =
-            ActiveWorkoutViewModel(repository, workoutId) as T
+            ActiveWorkoutViewModel(repository, workoutId, context) as T
     }
 }

@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.FitnessCenter
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.ShowChart
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
@@ -22,10 +23,14 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.strengthtracker.data.db.AppDatabase
 import com.strengthtracker.data.repository.WorkoutRepository
 import com.strengthtracker.ui.screen.*
 import com.strengthtracker.ui.theme.StrengthTrackerTheme
+import com.strengthtracker.util.SettingsRepository
 
 // ── Bottom nav definition ─────────────────────────────────────────────────────
 
@@ -36,9 +41,10 @@ sealed class BottomTab(
 ) {
     object Workouts : BottomTab("home", "Workouts", Icons.Default.FitnessCenter)
     object History  : BottomTab("history", "History", Icons.Default.ShowChart)
+    object Settings : BottomTab("settings", "Settings", Icons.Default.Settings)
 }
 
-val bottomTabs = listOf(BottomTab.Workouts, BottomTab.History)
+val bottomTabs = listOf(BottomTab.Workouts, BottomTab.History, BottomTab.Settings)
 
 // Routes where the bottom nav should be hidden
 private val noBottomBarRoutes = setOf(
@@ -63,9 +69,23 @@ class MainActivity : ComponentActivity() {
         )
 
         setContent {
-            StrengthTrackerTheme {
-                AppNavigation(repository = repository)
+            var themeMode by rememberSaveable { mutableStateOf(SettingsRepository.DEFAULT_THEME) }
+            var fontSize by rememberSaveable { mutableStateOf(SettingsRepository.DEFAULT_FONT_SIZE) }
+
+            LaunchedEffect(applicationContext) {
+                SettingsRepository.themeModeFlow(applicationContext).collect { themeMode = it }
             }
+            LaunchedEffect(applicationContext) {
+                SettingsRepository.fontSizeFlow(applicationContext).collect { fontSize = it }
+            }
+
+            StrengthTrackerTheme(
+                themeMode = themeMode,
+                fontSizeSp = fontSize,
+                content = {
+                    AppNavigation(repository = repository)
+                }
+            )
         }
     }
 }
@@ -140,6 +160,14 @@ private fun AppNavigation(repository: WorkoutRepository) {
                     onExerciseSelected = { exerciseId ->
                         navController.navigate("exercise_history/$exerciseId")
                     }
+                )
+            }
+
+            // ── Tab 3: Settings ─────────────────────────────────────────
+            composable(BottomTab.Settings.route) {
+                SettingsScreen(
+                    repository = repository,
+                    onBack = { /* Settings has no back nav needed — just pop stack */ navController.popBackStack() }
                 )
             }
 

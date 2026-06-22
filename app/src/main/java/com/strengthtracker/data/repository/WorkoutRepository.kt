@@ -67,4 +67,10 @@ class WorkoutRepository(
         workoutSessionDao.getAllSessions()
     suspend fun getAllSessionsList(): List<WorkoutSession> =
         workoutSessionDao.getAllSessionsList()
+
+    // --- Clear all data ---
+    suspend fun deleteAllWorkouts() = workoutDao.deleteAll()
+    suspend fun deleteAllExercises() = exerciseDao.deleteAll()
+    suspend fun deleteAllHistoryLogs() = historyLogDao.deleteAll()
+    suspend fun deleteAllWorkoutSessions() = workoutSessionDao.deleteAll()
 }

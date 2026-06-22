@@ -136,13 +136,13 @@ object CsvManager {
                             ImportedExercise(
                                 name = exerciseName,
                                 orderIndex = cols.getOrNull(3)?.trim()?.toIntOrNull() ?: 0,
-                                sets = cols.getOrNull(4)?.trim()?.toIntOrNull() ?: 3,
-                                restSeconds = cols.getOrNull(5)?.trim()?.toIntOrNull() ?: 90,
+                                sets = cols.getOrNull(4)?.trim()?.toIntOrNull() ?: SettingsRepository.DEFAULT_SETS,
+                                restSeconds = cols.getOrNull(5)?.trim()?.toIntOrNull() ?: SettingsRepository.DEFAULT_REST,
                                 targetWeightKg = cols.getOrNull(6)?.trim()?.toFloatOrNull(),
                                 targetReps = cols.getOrNull(7)?.trim()?.toIntOrNull(),
                                 exerciseType = cols.getOrNull(8)?.trim()?.let { t ->
                                     ExerciseType.entries.find { it.name == t }
-                                } ?: ExerciseType.REPS
+                                } ?: ExerciseType.entries.find { it.name == SettingsRepository.DEFAULT_EXERCISE_TYPE } ?: ExerciseType.REPS
                             )
                         )
                     }

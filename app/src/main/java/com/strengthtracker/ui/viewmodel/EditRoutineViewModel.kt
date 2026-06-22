@@ -7,9 +7,11 @@ import com.strengthtracker.data.db.entity.Exercise
 import com.strengthtracker.data.db.entity.ExerciseType
 import com.strengthtracker.data.db.entity.Workout
 import com.strengthtracker.data.repository.WorkoutRepository
+import com.strengthtracker.util.SettingsRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
@@ -24,12 +26,15 @@ data class EditRoutineState(
     val exercises: List<Exercise> = emptyList(),
     val isLoading: Boolean = true,
     val workoutNameInput: String = "",
-    val sheetState: ExerciseSheetState = ExerciseSheetState.Hidden
+    val sheetState: ExerciseSheetState = ExerciseSheetState.Hidden,
+    val defaultRest: Int = SettingsRepository.DEFAULT_REST,
+    val defaultSets: Int = SettingsRepository.DEFAULT_SETS
 )
 
 class EditRoutineViewModel(
     private val repository: WorkoutRepository,
-    private val workoutId: Long
+    private val workoutId: Long,
+    private val context: android.content.Context
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(EditRoutineState())
@@ -42,7 +47,9 @@ class EditRoutineViewModel(
     private fun observeRoutine() {
         viewModelScope.launch {
             val workout = repository.getWorkoutById(workoutId) ?: return@launch
-            _state.update { it.copy(workout = workout, workoutNameInput = workout.name, isLoading = false) }
+            val defaultRest = SettingsRepository.defaultRestFlow(context).first()
+            val defaultSets = SettingsRepository.defaultSetsFlow(context).first()
+            _state.update { it.copy(workout = workout, workoutNameInput = workout.name, isLoading = false, defaultRest = defaultRest, defaultSets = defaultSets) }
         }
         viewModelScope.launch {
             repository.getExercisesForWorkoutFlow(workoutId).collect { exercises ->
@@ -138,10 +145,11 @@ class EditRoutineViewModel(
 
     class Factory(
         private val repository: WorkoutRepository,
-        private val workoutId: Long
+        private val workoutId: Long,
+        private val context: android.content.Context
     ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T =
-            EditRoutineViewModel(repository, workoutId) as T
+            EditRoutineViewModel(repository, workoutId, context) as T
     }
 }

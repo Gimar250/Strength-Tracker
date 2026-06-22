@@ -41,8 +41,9 @@ fun ActiveWorkoutScreen(
     workoutId: Long,
     onWorkoutFinished: () -> Unit
 ) {
+    val context = androidx.compose.ui.platform.LocalContext.current
     val viewModel: ActiveWorkoutViewModel = viewModel(
-        factory = ActiveWorkoutViewModel.Factory(repository, workoutId)
+        factory = ActiveWorkoutViewModel.Factory(repository, workoutId, context)
     )
     val state by viewModel.state.collectAsStateWithLifecycle()
     val showSheet by viewModel.showProgressSheet.collectAsStateWithLifecycle()

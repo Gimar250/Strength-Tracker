@@ -14,8 +14,8 @@ android {
         applicationId = "com.strengthtracker"
         minSdk = 26
         targetSdk = 35
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = 130
+        versionName = "1.3.0"
     }
 
     buildTypes {
@@ -71,6 +71,9 @@ dependencies {
 
     // --- Coroutines ---
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.1")
+
+    // --- DataStore preferences ---
+    implementation("androidx.datastore:datastore-preferences:1.1.1")
 
     // --- Debug only ---
     debugImplementation("androidx.compose.ui:ui-tooling")

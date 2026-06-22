@@ -13,6 +13,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
@@ -26,6 +27,7 @@ import com.strengthtracker.data.db.entity.ExerciseType
 import com.strengthtracker.data.repository.WorkoutRepository
 import com.strengthtracker.ui.viewmodel.EditRoutineViewModel
 import com.strengthtracker.ui.viewmodel.ExerciseSheetState
+import com.strengthtracker.util.SettingsRepository
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -34,8 +36,9 @@ fun EditRoutineScreen(
     workoutId: Long,
     onBack: () -> Unit
 ) {
+    val context = LocalContext.current
     val viewModel: EditRoutineViewModel = viewModel(
-        factory = EditRoutineViewModel.Factory(repository, workoutId)
+        factory = EditRoutineViewModel.Factory(repository, workoutId, context)
     )
     val state by viewModel.state.collectAsStateWithLifecycle()
     val focusManager = LocalFocusManager.current
@@ -154,8 +157,12 @@ fun EditRoutineScreen(
             }
         ) {
             val existingExercise = (currentSheet as? ExerciseSheetState.Editing)?.exercise
+            val defaultRest = viewModel.state.value.defaultRest
+            val defaultSets = viewModel.state.value.defaultSets
             ExerciseEditSheet(
                 existing = existingExercise,
+                defaultRest = defaultRest,
+                defaultSets = defaultSets,
                 onSave = { name, sets, rest, targetWeight, targetReps, type ->
                     viewModel.saveExercise(name, sets, rest, targetWeight, targetReps, type, existingExercise)
                 },
@@ -281,12 +288,14 @@ private fun ExerciseEditCard(
 @Composable
 private fun ExerciseEditSheet(
     existing: Exercise?,
+    defaultRest: Int,
+    defaultSets: Int,
     onSave: (name: String, sets: Int, rest: Int, targetWeight: Float?, targetReps: Int?, type: ExerciseType) -> Unit,
     onDismiss: () -> Unit
 ) {
     var name by remember { mutableStateOf(existing?.name ?: "") }
-    var sets by remember { mutableStateOf(existing?.numberOfSets?.toString() ?: "3") }
-    var rest by remember { mutableStateOf(existing?.restInSeconds?.toString() ?: "90") }
+    var sets by remember { mutableStateOf(existing?.numberOfSets?.toString() ?: defaultSets.toString()) }
+    var rest by remember { mutableStateOf(existing?.restInSeconds?.toString() ?: defaultRest.toString()) }
     var targetWeight by remember {
         mutableStateOf(existing?.targetWeightKg?.let {
             if (it % 1 == 0f) it.toInt().toString() else it.toString()

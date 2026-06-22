@@ -120,54 +120,54 @@ fun HomeScreen(
                     )
                 },
                 actions = {
-                    if (uiState.isEditMode) {
-                        // CSV overflow menu
-                        Box {
-                            IconButton(onClick = { showCsvMenu = true }) {
-                                Icon(
-                                    Icons.Default.MoreVert,
-                                    contentDescription = "CSV options",
-                                    tint = MaterialTheme.colorScheme.onBackground
-                                )
-                            }
-                            DropdownMenu(
-                                expanded = showCsvMenu,
-                                onDismissRequest = { showCsvMenu = false }
-                            ) {
-                                DropdownMenuItem(
-                                    text = { Text("Export workouts as CSV") },
-                                    leadingIcon = {
-                                        Icon(Icons.Default.Share, contentDescription = null)
-                                    },
-                                    onClick = {
-                                        showCsvMenu = false
-                                        exportWorkoutsLauncher.launch("workouts_export.csv")
-                                    }
-                                )
-                                DropdownMenuItem(
-                                    text = { Text("Export logs as CSV") },
-                                    leadingIcon = {
-                                        Icon(Icons.Default.Share, contentDescription = null)
-                                    },
-                                    onClick = {
-                                        showCsvMenu = false
-                                        exportLogsLauncher.launch("logs_export.csv")
-                                    }
-                                )
-                                HorizontalDivider()
-                                DropdownMenuItem(
-                                    text = { Text("Import workouts from CSV") },
-                                    leadingIcon = {
-                                        Icon(Icons.Default.Add, contentDescription = null)
-                                    },
-                                    onClick = {
-                                        showCsvMenu = false
-                                        importLauncher.launch(arrayOf("text/*", "*/*"))
-                                    }
-                                )
-                            }
+                    // CSV overflow menu
+                    Box {
+                        IconButton(onClick = { showCsvMenu = true }) {
+                            Icon(
+                                Icons.Default.MoreVert,
+                                contentDescription = "CSV options",
+                                tint = MaterialTheme.colorScheme.onBackground
+                            )
                         }
-                        // Done button
+                        DropdownMenu(
+                            expanded = showCsvMenu,
+                            onDismissRequest = { showCsvMenu = false }
+                        ) {
+                            DropdownMenuItem(
+                                text = { Text("Export workouts as CSV") },
+                                leadingIcon = {
+                                    Icon(Icons.Default.Share, contentDescription = null)
+                                },
+                                onClick = {
+                                    showCsvMenu = false
+                                    exportWorkoutsLauncher.launch("workouts_export.csv")
+                                }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Export logs as CSV") },
+                                leadingIcon = {
+                                    Icon(Icons.Default.Share, contentDescription = null)
+                                },
+                                onClick = {
+                                    showCsvMenu = false
+                                    exportLogsLauncher.launch("logs_export.csv")
+                                }
+                            )
+                            HorizontalDivider()
+                            DropdownMenuItem(
+                                text = { Text("Import workouts from CSV") },
+                                leadingIcon = {
+                                    Icon(Icons.Default.Add, contentDescription = null)
+                                },
+                                onClick = {
+                                    showCsvMenu = false
+                                    importLauncher.launch(arrayOf("text/*", "*/*"))
+                                }
+                            )
+                        }
+                    }
+                    // Done button (only in edit mode)
+                    if (uiState.isEditMode) {
                         IconButton(onClick = { viewModel.exitEditMode() }) {
                             Icon(
                                 Icons.Default.Done,

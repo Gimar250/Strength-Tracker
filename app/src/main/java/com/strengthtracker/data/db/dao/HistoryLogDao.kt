@@ -42,4 +42,7 @@ interface HistoryLogDao {
 
     @Query("UPDATE history_logs SET weightKg = :weightKg, reps = :reps WHERE id = :logId")
     suspend fun updateLog(logId: Long, weightKg: Float, reps: Int)
+
+    @Query("DELETE FROM history_logs")
+    suspend fun deleteAll()
 }
