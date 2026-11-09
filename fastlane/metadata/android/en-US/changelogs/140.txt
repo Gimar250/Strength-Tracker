@@ -1,0 +1,6 @@
+- Session detail view for sessions in the last 14 days list
+- Weight field is prefilled with the best weight of the last session
+- Sets are saved to the database as they are completed, so nothing is lost if the app closes during a workout
+- Import skips duplicate workouts and malformed rows with a summary shown
+- Deleting an exercise warns that its history will be deleted too
+- Fixed exported logs being assigned to the wrong session when the same workout was done twice in one day

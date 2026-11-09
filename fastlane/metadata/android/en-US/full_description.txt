@@ -1,0 +1,12 @@
+A minimalist, privacy-focused workout tracking app.
+
+Build routines with exercises, sets and rest timers, then log the weight and reps of every set while you work out. All data is stored locally on the device — no account, no cloud, no tracking.
+
+Features:
+
+- Routines with rep-based or timed exercises
+- Rest timer with beeps, configurable in settings
+- Workout history with per-exercise progression
+- Session details for the last 14 days
+- CSV export and import
+- Dark and light themes, adjustable font size
