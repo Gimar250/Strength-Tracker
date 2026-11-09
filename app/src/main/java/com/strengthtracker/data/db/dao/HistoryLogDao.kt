@@ -40,6 +40,10 @@ interface HistoryLogDao {
     @Query("SELECT MAX(reps) FROM history_logs WHERE exerciseId = :exerciseId AND workoutId = :workoutId")
     suspend fun getMaxRepsForExerciseInWorkout(exerciseId: Long, workoutId: Long): Int?
 
+    // Get the best weight value from a specific workout for a specific exercise
+    @Query("SELECT MAX(weightKg) FROM history_logs WHERE exerciseId = :exerciseId AND workoutId = :workoutId")
+    suspend fun getMaxWeightForExerciseInWorkout(exerciseId: Long, workoutId: Long): Float?
+
     @Query("UPDATE history_logs SET weightKg = :weightKg, reps = :reps WHERE id = :logId")
     suspend fun updateLog(logId: Long, weightKg: Float, reps: Int)
 

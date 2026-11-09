@@ -142,6 +142,9 @@ class InMemoryHistoryLogDao : HistoryLogDao {
     override suspend fun getMaxRepsForExerciseInWorkout(exerciseId: Long, workoutId: Long): Int? =
         this.logs.filter { it.exerciseId == exerciseId && it.workoutId == workoutId }.maxByOrNull { it.reps }?.reps
 
+    override suspend fun getMaxWeightForExerciseInWorkout(exerciseId: Long, workoutId: Long): Float? =
+        this.logs.filter { it.exerciseId == exerciseId && it.workoutId == workoutId }.maxByOrNull { it.weightKg }?.weightKg
+
     override suspend fun updateLog(logId: Long, weightKg: Float, reps: Int) {
         val i = logs.indexOfFirst { it.id == logId }
         if (i >= 0) logs[i] = logs[i].copy(weightKg = weightKg, reps = reps)

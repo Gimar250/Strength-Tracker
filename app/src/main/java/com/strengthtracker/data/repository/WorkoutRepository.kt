@@ -58,6 +58,12 @@ class WorkoutRepository(
         return historyLogDao.getMaxRepsForExerciseInWorkout(exerciseId, workoutId)
     }
 
+    // Get the best weight from the most recent workout session for a given exercise
+    suspend fun getBestWeightFromLastWorkout(exerciseId: Long): Float? {
+        val workoutId = historyLogDao.getMostRecentWorkoutIdForExercise(exerciseId) ?: return null
+        return historyLogDao.getMaxWeightForExerciseInWorkout(exerciseId, workoutId)
+    }
+
     suspend fun updateSetLog(logId: Long, weightKg: Float, reps: Int) =
         historyLogDao.updateLog(logId, weightKg, reps)
 

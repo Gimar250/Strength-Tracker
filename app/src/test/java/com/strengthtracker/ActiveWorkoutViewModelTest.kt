@@ -213,4 +213,24 @@ class ActiveWorkoutViewModelTest {
         awaitUntil { vm.state.value is WorkoutScreenState.ActiveSet }
         assertEquals("8", (vm.state.value as WorkoutScreenState.ActiveSet).reps)
     }
+
+    @Test
+    fun `first set weight is prefilled with best weight of the previous session`() = runTest {
+        env = FakeWorkoutEnvironment()
+        val workoutId = env.repository.insertWorkout(Workout(name = "Bench Day", orderIndex = 0))
+        val exerciseId = env.repository.insertExercise(
+            Exercise(workoutId = workoutId, name = "Bench", numberOfSets = 1, restInSeconds = 1, orderIndex = 0)
+        )
+        // Two logged sets in the previous session — the best (max) weight is 82.5
+        env.historyLogDao.insertLog(
+            HistoryLog(exerciseId = exerciseId, workoutId = workoutId, setNumber = 1, weightKg = 80f, reps = 8)
+        )
+        env.historyLogDao.insertLog(
+            HistoryLog(exerciseId = exerciseId, workoutId = workoutId, setNumber = 2, weightKg = 82.5f, reps = 6)
+        )
+
+        vm = ActiveWorkoutViewModel(env.repository, workoutId, TestRestSettingsProvider())
+        awaitUntil { vm.state.value is WorkoutScreenState.ActiveSet }
+        assertEquals("82.5", (vm.state.value as WorkoutScreenState.ActiveSet).weightKg)
+    }
 }

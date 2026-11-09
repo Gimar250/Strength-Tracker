@@ -526,22 +526,28 @@ class ActiveWorkoutViewModel(
         val exerciseLogs = sessionLogs.filter { it.exerciseId == exercise.id }
         val log = exerciseLogs.find { it.setNumber == currentSet }
         
-        val bestRepsLastWorkout = if (currentSet == 1 && exerciseLogs.isEmpty()) {
+        val firstSetNoHistory = currentSet == 1 && exerciseLogs.isEmpty()
+        val bestRepsLastWorkout = if (firstSetNoHistory) {
             repository.getBestRepsFromLastWorkout(exercise.id)
         } else null
-        
+        val bestWeightLastWorkout = if (firstSetNoHistory) {
+            repository.getBestWeightFromLastWorkout(exercise.id)
+        } else null
+
         val prevSetLog = if (currentSet > 1) {
             exerciseLogs.find { it.setNumber == currentSet - 1 }
         } else null
-        
+
         _state.value = WorkoutScreenState.ActiveSet(
             exercise = exercise,
             exerciseIndex = currentExerciseIndex,
             totalExercises = exercises.size,
             currentSet = currentSet,
             totalSets = exercise.numberOfSets,
-            weightKg = log?.weightKg?.let { if (it == 0f) "" else it.toString() } 
-                ?: prevSetLog?.weightKg?.let { if (it == 0f) "" else it.toString() } 
+            weightKg = log?.weightKg?.let { if (it == 0f) "" else it.toString() }
+                ?: prevSetLog?.weightKg?.let { if (it == 0f) "" else it.toString() }
+                ?: bestWeightLastWorkout?.let { if (it == 0f) "" else it.toString() }
+                ?: exercise.targetWeightKg?.let { if (it == 0f) "" else it.toString() }
                 ?: "",
             reps = when {
                 exercise.exerciseType != ExerciseType.REPS -> ""
