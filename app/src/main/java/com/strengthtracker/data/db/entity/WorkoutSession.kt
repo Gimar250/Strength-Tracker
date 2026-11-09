@@ -1,10 +1,17 @@
 package com.strengthtracker.data.db.entity
 
 import androidx.room.Entity
+import androidx.room.Index
 import androidx.room.PrimaryKey
 
 // No foreign key — sessions are permanent history even if the workout is later deleted
-@Entity(tableName = "workout_sessions")
+@Entity(
+    tableName = "workout_sessions",
+    indices = [
+        Index("workoutId"),
+        Index("startTimestamp")
+    ]
+)
 data class WorkoutSession(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val workoutId: Long,
