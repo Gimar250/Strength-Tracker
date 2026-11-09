@@ -266,7 +266,7 @@ private fun ExerciseEditCard(
             },
             text = {
                 Text(
-                    "\"${exercise.name}\" will be permanently removed from this routine.",
+                    "\"${exercise.name}\" will be permanently removed from this routine, along with all its recorded history.",
                     style = MaterialTheme.typography.bodyLarge,
                     color = MaterialTheme.colorScheme.secondary
                 )
