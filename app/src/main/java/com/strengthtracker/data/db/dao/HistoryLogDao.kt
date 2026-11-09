@@ -32,6 +32,10 @@ interface HistoryLogDao {
     @Query("SELECT * FROM history_logs ORDER BY timestamp DESC")
     fun getAllLogsFlow(): Flow<List<HistoryLog>>
 
+    // Logs of a workout inside a time range — used by the session detail screen
+    @Query("SELECT * FROM history_logs WHERE workoutId = :workoutId AND timestamp >= :start AND timestamp < :end ORDER BY timestamp ASC")
+    suspend fun getLogsForWorkoutInRange(workoutId: Long, start: Long, end: Long): List<HistoryLog>
+
     // Get the most recent workout ID for a given exercise
     @Query("SELECT workoutId FROM history_logs WHERE exerciseId = :exerciseId ORDER BY timestamp DESC LIMIT 1")
     suspend fun getMostRecentWorkoutIdForExercise(exerciseId: Long): Long?

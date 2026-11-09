@@ -25,7 +25,8 @@ import com.strengthtracker.ui.viewmodel.SessionDisplayItem
 @Composable
 fun HistoryScreen(
     repository: WorkoutRepository,
-    onExerciseSelected: (Long) -> Unit
+    onExerciseSelected: (Long) -> Unit,
+    onSessionSelected: (workoutId: Long, sessionTimestamp: Long) -> Unit
 ) {
     val viewModel: HistoryViewModel = viewModel(factory = HistoryViewModel.Factory(repository))
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -97,7 +98,10 @@ fun HistoryScreen(
                 }
             } else {
                 items(uiState.recentSessions, key = { "${it.workoutId}-${it.timestamp}" }) { session ->
-                    SessionCard(session = session)
+                    SessionCard(
+                        session = session,
+                        onClick = { onSessionSelected(session.workoutId, session.timestamp) }
+                    )
                 }
             }
 
@@ -126,9 +130,11 @@ fun HistoryScreen(
 // ── Session card ─────────────────────────────────────────────────────────────
 
 @Composable
-private fun SessionCard(session: SessionDisplayItem) {
+private fun SessionCard(session: SessionDisplayItem, onClick: () -> Unit) {
     Surface(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick),
         color = MaterialTheme.colorScheme.surfaceVariant,
         shape = MaterialTheme.shapes.medium
     ) {

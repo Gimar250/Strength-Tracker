@@ -50,7 +50,8 @@ val bottomTabs = listOf(BottomTab.Workouts, BottomTab.History, BottomTab.Setting
 private val noBottomBarRoutes = setOf(
     "workout/{workoutId}",
     "edit/{workoutId}",
-    "exercise_history/{exerciseId}"
+    "exercise_history/{exerciseId}",
+    "session/{workoutId}/{sessionTimestamp}"
 )
 
 // ── Activity ──────────────────────────────────────────────────────────────────
@@ -159,6 +160,9 @@ private fun AppNavigation(repository: WorkoutRepository) {
                     repository = repository,
                     onExerciseSelected = { exerciseId ->
                         navController.navigate("exercise_history/$exerciseId")
+                    },
+                    onSessionSelected = { workoutId, sessionTimestamp ->
+                        navController.navigate("session/$workoutId/$sessionTimestamp")
                     }
                 )
             }
@@ -179,6 +183,22 @@ private fun AppNavigation(repository: WorkoutRepository) {
                 ExerciseHistoryScreen(
                     repository = repository,
                     exerciseId = entry.arguments!!.getLong("exerciseId"),
+                    onBack = { navController.popBackStack() }
+                )
+            }
+
+            // ── Session detail (full screen, no bottom bar) ───────────────
+            composable(
+                route = "session/{workoutId}/{sessionTimestamp}",
+                arguments = listOf(
+                    navArgument("workoutId") { type = NavType.LongType },
+                    navArgument("sessionTimestamp") { type = NavType.LongType }
+                )
+            ) { entry ->
+                SessionDetailScreen(
+                    repository = repository,
+                    workoutId = entry.arguments!!.getLong("workoutId"),
+                    sessionTimestamp = entry.arguments!!.getLong("sessionTimestamp"),
                     onBack = { navController.popBackStack() }
                 )
             }

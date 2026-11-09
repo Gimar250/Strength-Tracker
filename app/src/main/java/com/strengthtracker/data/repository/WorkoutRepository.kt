@@ -9,6 +9,7 @@ import com.strengthtracker.data.db.entity.HistoryLog
 import com.strengthtracker.data.db.entity.Workout
 import com.strengthtracker.data.db.entity.WorkoutSession
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 
 class WorkoutRepository(
     private val workoutDao: WorkoutDao,
@@ -47,6 +48,8 @@ class WorkoutRepository(
         historyLogDao.getLogsForExercise(exerciseId)
     fun getLogsForWorkout(workoutId: Long): Flow<List<HistoryLog>> =
         historyLogDao.getLogsForWorkout(workoutId)
+    suspend fun getLogsForWorkoutInRange(workoutId: Long, start: Long, end: Long): List<HistoryLog> =
+        historyLogDao.getLogsForWorkoutInRange(workoutId, start, end)
     suspend fun getLastSessionForWorkout(workoutId: Long): HistoryLog? =
         historyLogDao.getLastSessionForWorkout(workoutId)
     suspend fun getAllLogs(): List<HistoryLog> = historyLogDao.getAllLogs()
@@ -74,6 +77,8 @@ class WorkoutRepository(
         workoutSessionDao.getAllSessions()
     suspend fun getAllSessionsList(): List<WorkoutSession> =
         workoutSessionDao.getAllSessionsList()
+    suspend fun getSessionsForWorkoutOnce(workoutId: Long): List<WorkoutSession> =
+        workoutSessionDao.getSessionsForWorkout(workoutId).first()
 
     // --- Clear all data ---
     suspend fun deleteAllWorkouts() = workoutDao.deleteAll()

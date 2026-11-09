@@ -127,6 +127,10 @@ class InMemoryHistoryLogDao : HistoryLogDao {
     override fun getLogsForWorkout(workoutId: Long): Flow<List<HistoryLog>> =
         flowOf(this.logs.filter { it.workoutId == workoutId }.sortedByDescending { it.timestamp })
 
+    override suspend fun getLogsForWorkoutInRange(workoutId: Long, start: Long, end: Long): List<HistoryLog> =
+        this.logs.filter { it.workoutId == workoutId && it.timestamp >= start && it.timestamp < end }
+            .sortedBy { it.timestamp }
+
     override suspend fun getLastSessionForWorkout(workoutId: Long): HistoryLog? =
         this.logs.filter { it.workoutId == workoutId }.maxByOrNull { it.timestamp }
 
