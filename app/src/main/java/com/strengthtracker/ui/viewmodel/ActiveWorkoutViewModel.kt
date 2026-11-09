@@ -79,13 +79,38 @@ sealed class WorkoutScreenState {
 }
 
 // ---------------------------------------------------------------------------
+// Rest sound settings (injected so the ViewModel is testable on the JVM)
+// ---------------------------------------------------------------------------
+
+data class RestSoundSettings(
+    val volume: Int,
+    val beepDurationMs: Int,
+    val prepareBeepEnabled: Boolean,
+    val endBeepEnabled: Boolean
+)
+
+interface RestSoundSettingsProvider {
+    suspend fun settings(): RestSoundSettings
+}
+
+class DefaultRestSoundSettingsProvider(private val context: android.content.Context) : RestSoundSettingsProvider {
+    override suspend fun settings(): RestSoundSettings = RestSoundSettings(
+        volume = SettingsRepository.volumeFlow(context).first(),
+        beepDurationMs = SettingsRepository.beepDurationFlow(context).first(),
+        prepareBeepEnabled = SettingsRepository.prepareBeepEnabledFlow(context).first(),
+        endBeepEnabled = SettingsRepository.endBeepEnabledFlow(context).first()
+    )
+}
+
+// ---------------------------------------------------------------------------
 // ViewModel
 // ---------------------------------------------------------------------------
 
 class ActiveWorkoutViewModel(
     private val repository: WorkoutRepository,
     private val workoutId: Long,
-    private val context: android.content.Context
+    private val context: android.content.Context,
+    private val restSoundSettingsProvider: RestSoundSettingsProvider = DefaultRestSoundSettingsProvider(context)
 ) : ViewModel() {
 
     private val _state = MutableStateFlow<WorkoutScreenState>(WorkoutScreenState.Loading)
@@ -461,27 +486,24 @@ class ActiveWorkoutViewModel(
         )
         timerJob?.cancel()
         timerJob = viewModelScope.launch {
-            val volume = SettingsRepository.volumeFlow(context).first()
-            val beepDuration = SettingsRepository.beepDurationFlow(context).first()
-            val prepareBeepEnabled = SettingsRepository.prepareBeepEnabledFlow(context).first()
-            val endBeepEnabled = SettingsRepository.endBeepEnabledFlow(context).first()
+            val settings = restSoundSettingsProvider.settings()
             for (remaining in currentExercise.restInSeconds downTo 1) {
                 _state.update {
                     (it as? WorkoutScreenState.Resting)?.copy(secondsRemaining = remaining) ?: it
                 }
-                if (remaining == 10){
+                if (remaining == 10) {
                     SoundPlayer.playRestPrepareBeep(
-                        volume = volume,
-                        beepDurationMs = beepDuration,
-                        enabled = prepareBeepEnabled
+                        volume = settings.volume,
+                        beepDurationMs = settings.beepDurationMs,
+                        enabled = settings.prepareBeepEnabled
                     )
                 }
                 delay(1_000)
             }
             SoundPlayer.playRestEndBeep(
-                volume = volume,
-                beepDurationMs = beepDuration,
-                enabled = endBeepEnabled
+                volume = settings.volume,
+                beepDurationMs = settings.beepDurationMs,
+                enabled = settings.endBeepEnabled
             )
             delay(500)
             advanceWorkout()
