@@ -46,16 +46,16 @@ object SoundPlayer {
             // STREAM_ALARM ensures the beep is audible even in silent mode
             val toneGen = ToneGenerator(AudioManager.STREAM_ALARM, volume)
 
-            // TONE_PROP_BEEP genera un único pitido estándar del sistema
+            // TONE_PROP_BEEP plays a single standard system beep
             toneGen.startTone(toneType, beepDurationMs)
 
-            // Se liberan los recursos justo después de que termine de sonar
+            // Release the resources right after the tone finishes playing
             android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
                 toneGen.release()
             }, (beepDurationMs + 100).toLong())
 
         } catch (e: Exception) {
-            // Evita cierres inesperados en dispositivos que no soportan ToneGenerator
+            // Avoid unexpected crashes on devices that do not support ToneGenerator
             e.printStackTrace()
         }
     }
