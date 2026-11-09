@@ -7,15 +7,100 @@ import com.strengthtracker.data.db.entity.ExerciseType
 import com.strengthtracker.data.db.entity.HistoryLog
 import com.strengthtracker.data.db.entity.Workout
 import com.strengthtracker.data.db.entity.WorkoutSession
-import java.io.BufferedReader
-import java.io.InputStreamReader
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
+/**
+ * CSV import/export.
+ *
+ * The pure-text functions (*Text) hold all parsing/formatting logic and are
+ * unit-testable without Android; the Uri-based functions are thin wrappers
+ * that only open and close the content-resolver streams.
+ */
 object CsvManager {
 
     private val dateFormat = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault())
+
+    // ── Export (text cores) ─────────────────────────────────────────────────
+
+    fun exportWorkoutsText(
+        workouts: List<Workout>,
+        exercisesByWorkout: Map<Long, List<Exercise>>
+    ): String {
+        val sb = StringBuilder()
+        sb.append(
+            "workout_name,workout_order,exercise_name,exercise_order,sets,rest_seconds,target_weight_kg,target_reps,exercise_type\n"
+        )
+        workouts.forEach { workout ->
+            val exercises = exercisesByWorkout[workout.id] ?: emptyList()
+            if (exercises.isEmpty()) {
+                sb.append("${workout.name.escapeCsv()},${workout.orderIndex},,,,,,\n")
+            } else {
+                exercises.forEach { ex ->
+                    sb.append(
+                        "${workout.name.escapeCsv()}," +
+                                "${workout.orderIndex}," +
+                                "${ex.name.escapeCsv()}," +
+                                "${ex.orderIndex}," +
+                                "${ex.numberOfSets}," +
+                                "${ex.restInSeconds}," +
+                                "${ex.targetWeightKg ?: ""}," +
+                                "${ex.targetReps ?: ""}," +
+                                "${ex.exerciseType.name}\n"
+                    )
+                }
+            }
+        }
+        return sb.toString()
+    }
+
+    fun exportLogsText(
+        logs: List<HistoryLog>,
+        workouts: List<Workout>,
+        exercisesByWorkout: Map<Long, List<Exercise>>,
+        sessions: List<WorkoutSession>
+    ): String {
+        val workoutMap = workouts.associateBy { it.id }
+        val exerciseMap = exercisesByWorkout.values.flatten().associateBy { it.id }
+
+        // Group sessions by workout; a log is matched to the session whose time
+        // window (start .. start + duration) contains its timestamp, so several
+        // sessions of the same workout on the same day stay distinct.
+        val sessionsByWorkout = sessions.groupBy { it.workoutId }
+
+        val sb = StringBuilder()
+        sb.append(
+            "workout_name,exercise_name,exercise_type,set_number,weight_kg,reps_or_seconds,timestamp,duration_seconds,session_notes\n"
+        )
+        logs.forEach { log ->
+            val workoutName = workoutMap[log.workoutId]?.name ?: "Unknown"
+            val exercise = exerciseMap[log.exerciseId]
+            val exerciseName = exercise?.name ?: "Unknown"
+            val exerciseType = exercise?.exerciseType?.name ?: "REPS"
+
+            // Find the session this log was recorded in
+            val session = sessionsByWorkout[log.workoutId]
+                ?.filter { it.startTimestamp <= log.timestamp &&
+                          log.timestamp < it.startTimestamp + it.durationSeconds * 1000L }
+                ?.maxByOrNull { it.startTimestamp }
+
+            sb.append(
+                "${workoutName.escapeCsv()}," +
+                        "${exerciseName.escapeCsv()}," +
+                        "$exerciseType," +
+                        "${log.setNumber}," +
+                        "${log.weightKg}," +
+                        "${log.reps}," +
+                        "${dateFormat.format(Date(log.timestamp))}," +
+                        "${session?.durationSeconds ?: ""}," +
+                        "${(session?.notes ?: "").escapeCsv()}\n"
+            )
+        }
+        return sb.toString()
+    }
+
+    // ── Export (Uri wrappers) ───────────────────────────────────────────────
 
     fun exportWorkouts(
         context: Context,
@@ -24,29 +109,7 @@ object CsvManager {
         exercisesByWorkout: Map<Long, List<Exercise>>
     ) {
         context.contentResolver.openOutputStream(uri)?.use { stream ->
-            val writer = stream.bufferedWriter()
-            writer.write("workout_name,workout_order,exercise_name,exercise_order,sets,rest_seconds,target_weight_kg,target_reps,exercise_type\n")
-            workouts.forEach { workout ->
-                val exercises = exercisesByWorkout[workout.id] ?: emptyList()
-                if (exercises.isEmpty()) {
-                    writer.write("${workout.name.escapeCsv()},${workout.orderIndex},,,,,,\n")
-                } else {
-                    exercises.forEach { ex ->
-                        writer.write(
-                            "${workout.name.escapeCsv()}," +
-                                    "${workout.orderIndex}," +
-                                    "${ex.name.escapeCsv()}," +
-                                    "${ex.orderIndex}," +
-                                    "${ex.numberOfSets}," +
-                                    "${ex.restInSeconds}," +
-                                    "${ex.targetWeightKg ?: ""}," +
-                                    "${ex.targetReps ?: ""}," +
-                                    "${ex.exerciseType.name}\n"
-                        )
-                    }
-                }
-            }
-            writer.flush()
+            stream.bufferedWriter().use { it.write(exportWorkoutsText(workouts, exercisesByWorkout)) }
         }
     }
 
@@ -56,48 +119,14 @@ object CsvManager {
         logs: List<HistoryLog>,
         workouts: List<Workout>,
         exercisesByWorkout: Map<Long, List<Exercise>>,
-        sessions: List<WorkoutSession>      // ← new parameter
+        sessions: List<WorkoutSession>
     ) {
-        val workoutMap = workouts.associateBy { it.id }
-        val exerciseMap = exercisesByWorkout.values.flatten().associateBy { it.id }
-
-        // Group sessions by workout; a log is matched to the session whose time
-        // window (start .. start + duration) contains its timestamp, so several
-        // sessions of the same workout on the same day stay distinct.
-        val sessionsByWorkout = sessions.groupBy { it.workoutId }
-
         context.contentResolver.openOutputStream(uri)?.use { stream ->
-            val writer = stream.bufferedWriter()
-            writer.write("workout_name,exercise_name,exercise_type,set_number,weight_kg,reps_or_seconds,timestamp,duration_seconds,session_notes\n")
-            logs.forEach { log ->
-                val workoutName = workoutMap[log.workoutId]?.name ?: "Unknown"
-                val exercise = exerciseMap[log.exerciseId]
-                val exerciseName = exercise?.name ?: "Unknown"
-                val exerciseType = exercise?.exerciseType?.name ?: "REPS"
-
-                // Find the session this log was recorded in
-                val session = sessionsByWorkout[log.workoutId]
-                    ?.filter { it.startTimestamp <= log.timestamp &&
-                              log.timestamp < it.startTimestamp + it.durationSeconds * 1000L }
-                    ?.maxByOrNull { it.startTimestamp }
-
-                writer.write(
-                    "${workoutName.escapeCsv()}," +
-                            "${exerciseName.escapeCsv()}," +
-                            "$exerciseType," +
-                            "${log.setNumber}," +
-                            "${log.weightKg}," +
-                            "${log.reps}," +
-                            "${dateFormat.format(Date(log.timestamp))}," +
-                            "${session?.durationSeconds ?: ""}," +
-                            "${(session?.notes ?: "").escapeCsv()}\n"
-                )
-            }
-            writer.flush()
+            stream.bufferedWriter().use { it.write(exportLogsText(logs, workouts, exercisesByWorkout, sessions)) }
         }
     }
 
-    // ── Import (unchanged) ───────────────────────────────────────────────────
+    // ── Import ──────────────────────────────────────────────────────────────
 
     data class ImportedExercise(
         val name: String,
@@ -115,38 +144,40 @@ object CsvManager {
         val exercises: List<ImportedExercise>
     )
 
-    fun importWorkouts(context: Context, uri: Uri): List<ImportedWorkout> {
+    /**
+     * Parses a workouts CSV (first line is the header).
+     * Malformed numeric cells fall back to their default values.
+     */
+    fun importWorkoutsText(text: String): List<ImportedWorkout> {
         val rows = mutableMapOf<String, MutableList<ImportedExercise>>()
         val workoutOrders = mutableMapOf<String, Int>()
-        context.contentResolver.openInputStream(uri)?.use { stream ->
-            val reader = BufferedReader(InputStreamReader(stream))
-            reader.readLine()
-            var line = reader.readLine()
-            while (line != null) {
-                val cols = line.parseCsvLine()
-                val workoutName = cols.getOrNull(0)?.trim() ?: ""
-                if (workoutName.isNotBlank()) {
-                    val workoutOrder = cols.getOrNull(1)?.trim()?.toIntOrNull() ?: 0
-                    workoutOrders[workoutName] = workoutOrder
-                    if (!rows.containsKey(workoutName)) rows[workoutName] = mutableListOf()
-                    val exerciseName = cols.getOrNull(2)?.trim() ?: ""
-                    if (exerciseName.isNotBlank()) {
-                        rows[workoutName]!!.add(
-                            ImportedExercise(
-                                name = exerciseName,
-                                orderIndex = cols.getOrNull(3)?.trim()?.toIntOrNull() ?: 0,
-                                sets = cols.getOrNull(4)?.trim()?.toIntOrNull() ?: SettingsRepository.DEFAULT_SETS,
-                                restSeconds = cols.getOrNull(5)?.trim()?.toIntOrNull() ?: SettingsRepository.DEFAULT_REST,
-                                targetWeightKg = cols.getOrNull(6)?.trim()?.toFloatOrNull(),
-                                targetReps = cols.getOrNull(7)?.trim()?.toIntOrNull(),
-                                exerciseType = cols.getOrNull(8)?.trim()?.let { t ->
-                                    ExerciseType.entries.find { it.name == t }
-                                } ?: ExerciseType.entries.find { it.name == SettingsRepository.DEFAULT_EXERCISE_TYPE } ?: ExerciseType.REPS
-                            )
+        // Iterate over data lines (skip the header line)
+        var isFirstLine = true
+        for (line in text.lines()) {
+            if (isFirstLine) { isFirstLine = false; continue }
+            if (line.isBlank()) continue
+            val cols = line.parseCsvLine()
+            val workoutName = cols.getOrNull(0)?.trim() ?: ""
+            if (workoutName.isNotBlank()) {
+                val workoutOrder = cols.getOrNull(1)?.trim()?.toIntOrNull() ?: 0
+                workoutOrders[workoutName] = workoutOrder
+                if (!rows.containsKey(workoutName)) rows[workoutName] = mutableListOf()
+                val exerciseName = cols.getOrNull(2)?.trim() ?: ""
+                if (exerciseName.isNotBlank()) {
+                    rows[workoutName]!!.add(
+                        ImportedExercise(
+                            name = exerciseName,
+                            orderIndex = cols.getOrNull(3)?.trim()?.toIntOrNull() ?: 0,
+                            sets = cols.getOrNull(4)?.trim()?.toIntOrNull() ?: SettingsRepository.DEFAULT_SETS,
+                            restSeconds = cols.getOrNull(5)?.trim()?.toIntOrNull() ?: SettingsRepository.DEFAULT_REST,
+                            targetWeightKg = cols.getOrNull(6)?.trim()?.toFloatOrNull(),
+                            targetReps = cols.getOrNull(7)?.trim()?.toIntOrNull(),
+                            exerciseType = cols.getOrNull(8)?.trim()?.let { t ->
+                                ExerciseType.entries.find { it.name == t }
+                            } ?: ExerciseType.entries.find { it.name == SettingsRepository.DEFAULT_EXERCISE_TYPE } ?: ExerciseType.REPS
                         )
-                    }
+                    )
                 }
-                line = reader.readLine()
             }
         }
         return rows.map { (name, exercises) ->
@@ -158,6 +189,14 @@ object CsvManager {
         }.sortedBy { it.orderIndex }
     }
 
+    fun importWorkouts(context: Context, uri: Uri): List<ImportedWorkout> {
+        return context.contentResolver.openInputStream(uri)
+            ?.use { it.bufferedReader().use { importWorkoutsText(it.readText()) } }
+            ?: emptyList()
+    }
+
+    // ── CSV primitives ──────────────────────────────────────────────────────
+
     private fun String.escapeCsv(): String =
         if (contains(',') || contains('"') || contains('\n'))
             "\"${replace("\"", "\"\"")}\""
@@ -165,7 +204,7 @@ object CsvManager {
 
     private fun String.parseCsvLine(): List<String> {
         val result = mutableListOf<String>()
-        var current = StringBuilder()
+        val current = StringBuilder()
         var inQuotes = false
         var i = 0
         while (i < length) {
@@ -175,7 +214,7 @@ object CsvManager {
                 }
                 this[i] == '"' -> { inQuotes = !inQuotes; i++ }
                 this[i] == ',' && !inQuotes -> {
-                    result.add(current.toString()); current = StringBuilder(); i++
+                    result.add(current.toString()); current.setLength(0); i++
                 }
                 else -> { current.append(this[i]); i++ }
             }
