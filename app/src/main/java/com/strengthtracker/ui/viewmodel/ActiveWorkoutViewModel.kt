@@ -109,8 +109,7 @@ class DefaultRestSoundSettingsProvider(private val context: android.content.Cont
 class ActiveWorkoutViewModel(
     private val repository: WorkoutRepository,
     private val workoutId: Long,
-    private val context: android.content.Context,
-    private val restSoundSettingsProvider: RestSoundSettingsProvider = DefaultRestSoundSettingsProvider(context)
+    private val restSoundSettingsProvider: RestSoundSettingsProvider
 ) : ViewModel() {
 
     private val _state = MutableStateFlow<WorkoutScreenState>(WorkoutScreenState.Loading)
@@ -583,6 +582,6 @@ class ActiveWorkoutViewModel(
     ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T =
-            ActiveWorkoutViewModel(repository, workoutId, context) as T
+            ActiveWorkoutViewModel(repository, workoutId, DefaultRestSoundSettingsProvider(context)) as T
     }
 }

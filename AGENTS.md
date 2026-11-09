@@ -50,7 +50,7 @@ app/src/main/java/com/strengthtracker/
 
 - Single-module app (`:app`). No library modules.
 - `WorkoutRepository` is the sole repository — all DAOs injected through it.
-- **No tests exist** — manual testing only.
+- **Unit tests** are in `app/src/test/java/com/strengthtracker/` — run with `./gradlew :app:testDebugUnitTest`. They cover the `ActiveWorkoutViewModel` state machine (via in-memory DAO fakes in `FakeWorkoutData.kt`) and the CSV export/import logic. No instrumentation/UI tests exist — manual testing is still needed for the UI.
 - Navigation: MainActivity sets up NavHost with routes `home`, `history`, `workout/{id}`, `edit/{id}`, `exercise_history/{id}`, `settings`. Bottom nav only on `home`/`history`/`settings`.
 - CSV import/export uses `CsvManager` in `util/`.
 - Settings persisted via DataStore preferences (key `settings`), not SharedPreferences.
