@@ -4,6 +4,12 @@ plugins {
     alias(libs.plugins.kotlin.compose)
     // KSP is required for Room's annotation processor
     alias(libs.plugins.ksp)
+    // Room Gradle plugin: exports the database schema to app/schemas
+    alias(libs.plugins.room)
+}
+
+room {
+    schemaDirectory("$projectDir/schemas")
 }
 
 android {
