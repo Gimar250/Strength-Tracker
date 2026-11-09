@@ -11,7 +11,7 @@ import kotlinx.coroutines.flow.Flow
 interface HistoryLogDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertLog(log: HistoryLog)
+    suspend fun insertLog(log: HistoryLog): Long
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertAll(logs: List<HistoryLog>)

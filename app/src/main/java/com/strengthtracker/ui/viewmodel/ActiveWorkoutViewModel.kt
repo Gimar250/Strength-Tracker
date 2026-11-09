@@ -244,37 +244,43 @@ class ActiveWorkoutViewModel(
             ExerciseType.REPS -> s.reps.toIntOrNull() ?: 0
             ExerciseType.TIMED -> s.stopwatchSeconds
         }
-        val existingLog = sessionLogs.find { it.exerciseId == s.exercise.id && it.setNumber == currentSet }
-        if (existingLog != null) {
-            sessionLogs.removeAll { it.exerciseId == s.exercise.id && it.setNumber == currentSet }
-            sessionLogs.add(
-                HistoryLog(
-                    id = existingLog.id,
-                    exerciseId = s.exercise.id,
-                    workoutId = workoutId,
-                    setNumber = currentSet,
-                    weightKg = weightKg,
-                    reps = repsValue,
-                    timestamp = System.currentTimeMillis()
-                )
-            )
-        } else {
-            sessionLogs.add(
-                HistoryLog(
-                    exerciseId = s.exercise.id,
-                    workoutId = workoutId,
-                    setNumber = currentSet,
-                    weightKg = weightKg,
-                    reps = repsValue,
-                    timestamp = System.currentTimeMillis()
-                )
-            )
-        }
-
         val isLastSet = currentSet >= s.exercise.numberOfSets
         val isLastExercise = currentExerciseIndex >= exercises.size - 1
-        if (isLastSet && isLastExercise) { showSummary(); return }
-        startRestTimer(s.exercise)
+
+        viewModelScope.launch {
+            upsertSetLog(s.exercise, weightKg, repsValue)
+            if (isLastSet && isLastExercise) showSummary() else startRestTimer(s.exercise)
+        }
+    }
+
+    // Persists the set's values to the database immediately (so they survive
+    // process death) and keeps the in-memory sessionLogs in sync.
+    private suspend fun upsertSetLog(exercise: Exercise, weightKg: Float, reps: Int) {
+        val existingLog = sessionLogs.find { it.exerciseId == exercise.id && it.setNumber == currentSet }
+        val updated = if (existingLog != null) {
+            repository.updateSetLog(existingLog.id, weightKg, reps)
+            existingLog.copy(weightKg = weightKg, reps = reps, timestamp = System.currentTimeMillis())
+        } else {
+            val id = repository.insertLog(
+                HistoryLog(
+                    exerciseId = exercise.id,
+                    workoutId = workoutId,
+                    setNumber = currentSet,
+                    weightKg = weightKg,
+                    reps = reps
+                )
+            )
+            HistoryLog(
+                id = id,
+                exerciseId = exercise.id,
+                workoutId = workoutId,
+                setNumber = currentSet,
+                weightKg = weightKg,
+                reps = reps
+            )
+        }
+        sessionLogs.removeAll { it.exerciseId == exercise.id && it.setNumber == currentSet }
+        sessionLogs.add(updated)
     }
 
     fun skipSet() {
@@ -282,18 +288,10 @@ class ActiveWorkoutViewModel(
         stopwatchJob?.cancel()
         val existingLog = sessionLogs.find { it.exerciseId == s.exercise.id && it.setNumber == currentSet }
         if (existingLog != null) {
-            sessionLogs.removeAll { it.exerciseId == s.exercise.id && it.setNumber == currentSet }
-            sessionLogs.add(
-                HistoryLog(
-                    id = existingLog.id,
-                    exerciseId = s.exercise.id,
-                    workoutId = workoutId,
-                    setNumber = currentSet,
-                    weightKg = 0f,
-                    reps = 0,
-                    timestamp = System.currentTimeMillis()
-                )
-            )
+            val skipped = existingLog.copy(weightKg = 0f, reps = 0, timestamp = System.currentTimeMillis())
+            sessionLogs.removeAll { it.exerciseId == existingLog.exerciseId && it.setNumber == existingLog.setNumber }
+            sessionLogs.add(skipped)
+            viewModelScope.launch { repository.updateSetLog(existingLog.id, 0f, 0) }
         }
         val isLastSet = currentSet >= s.exercise.numberOfSets
         val isLastExercise = currentExerciseIndex >= exercises.size - 1
@@ -391,28 +389,13 @@ class ActiveWorkoutViewModel(
         val isTimed = s.exercise.exerciseType == ExerciseType.TIMED
         val weightKg = weight.toFloatOrNull() ?: 0f
         val repsValue = if (isTimed) s.stopwatchSeconds else (reps.toIntOrNull() ?: 0)
-        val existingLog = sessionLogs.find { it.exerciseId == s.exercise.id && it.setNumber == currentSet }
-        if (existingLog != null) {
-            viewModelScope.launch {
-                repository.updateSetLog(existingLog.id, weightKg, repsValue)
-            }
-        }
-        sessionLogs.removeAll { it.exerciseId == s.exercise.id && it.setNumber == currentSet }
-        sessionLogs.add(
-            HistoryLog(
-                id = existingLog?.id ?: 0,
-                exerciseId = s.exercise.id,
-                workoutId = workoutId,
-                setNumber = currentSet,
-                weightKg = weightKg,
-                reps = repsValue,
-                timestamp = System.currentTimeMillis()
-            )
-        )
         val isLastSet = currentSet >= s.exercise.numberOfSets
         val isLastExercise = currentExerciseIndex >= exercises.size - 1
-        if (isLastSet && isLastExercise) { showSummary(); return }
-        startRestTimer(s.exercise)
+
+        viewModelScope.launch {
+            upsertSetLog(s.exercise, weightKg, repsValue)
+            if (isLastSet && isLastExercise) showSummary() else startRestTimer(s.exercise)
+        }
     }
 
     fun isForwardNavigationAvailable(): Boolean {

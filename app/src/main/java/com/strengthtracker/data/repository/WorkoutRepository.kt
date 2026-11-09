@@ -42,6 +42,7 @@ class WorkoutRepository(
 
     // --- History Logs ---
     suspend fun saveWorkoutSession(logs: List<HistoryLog>) = historyLogDao.insertAll(logs)
+    suspend fun insertLog(log: HistoryLog): Long = historyLogDao.insertLog(log)
     fun getLogsForExercise(exerciseId: Long): Flow<List<HistoryLog>> =
         historyLogDao.getLogsForExercise(exerciseId)
     fun getLogsForWorkout(workoutId: Long): Flow<List<HistoryLog>> =

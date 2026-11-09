@@ -76,7 +76,7 @@ Key files:
 
 ## ActiveWorkoutViewModel state machine (important)
 
-`ActiveWorkoutViewModel` uses mutable fields (`currentExerciseIndex`, `currentSet`) and `sessionLogs` (in-memory list) as the single source of truth during a workout. All set states are tracked in-memory until `saveAndFinish()` persists.
+`ActiveWorkoutViewModel` uses mutable fields (`currentExerciseIndex`, `currentSet`) and `sessionLogs` (in-memory list) as the single source of truth during a workout. Sets are persisted to the database **incrementally** as soon as they are completed/modified/skipped (`upsertSetLog` — insert new, update existing); `sessionLogs` stays in sync with the DB. `saveAndFinish()` re-saves all logs (idempotent, REPLACE) and inserts the `WorkoutSession` record.
 
 Key patterns:
 - **Navigation during workout**: Use `viewModelScope.launch` when calling `emitActiveSetState()` — it's a `suspend` function, never call it from non-suspend context.
