@@ -34,8 +34,9 @@ app/src/main/java/com/strengthtracker/
     repository/
       WorkoutRepository.kt — sole repository, wraps all DAOs
   ui/
-    screen/                — 7 screens (Home, History, ActiveWorkout, WorkoutSummary, EditRoutine, ExerciseHistory, Settings)
-    viewmodel/             — 6 ViewModels (one per screen)
+    screen/                — 8 screens (Home, History, ActiveWorkout, WorkoutSummary, EditRoutine, ExerciseHistory, SessionDetail, Settings)
+                         + SessionLogComponents.kt (set-row/summary-card components shared by WorkoutSummary and SessionDetail)
+    viewmodel/             — 7 ViewModels (one per screen)
   util/
     CsvManager.kt          — CSV import/export
     SoundPlayer.kt         — rest timer beeps
@@ -44,6 +45,10 @@ app/src/main/java/com/strengthtracker/
     Color.kt               — DarkColors (dark theme), LightColors (light theme)
     Theme.kt               — StrengthTrackerTheme(themeMode, fontSizeSp) — reads settings via DataStore
     Type.kt                — AppTypography(fontSizeSp) — scales all font sizes proportionally
+
+app/src/test/java/com/strengthtracker/
+    FakeWorkoutData.kt     — in-memory fake DAOs/repository for unit tests (no real DB)
+    ActiveWorkoutViewModelTest.kt, CsvManagerTest.kt, SessionDetailViewModelTest.kt
 ```
 
 ## Architecture notes
@@ -51,9 +56,10 @@ app/src/main/java/com/strengthtracker/
 - Single-module app (`:app`). No library modules.
 - `WorkoutRepository` is the sole repository — all DAOs injected through it.
 - **Unit tests** are in `app/src/test/java/com/strengthtracker/` — run with `./gradlew :app:testDebugUnitTest`. They cover the `ActiveWorkoutViewModel` state machine (via in-memory DAO fakes in `FakeWorkoutData.kt`) and the CSV export/import logic. No instrumentation/UI tests exist — manual testing is still needed for the UI.
-- Navigation: MainActivity sets up NavHost with routes `home`, `history`, `workout/{id}`, `edit/{id}`, `exercise_history/{id}`, `settings`. Bottom nav only on `home`/`history`/`settings`.
-- CSV import/export uses `CsvManager` in `util/`.
+- Navigation: MainActivity sets up NavHost with routes `home`, `history`, `workout/{id}`, `edit/{id}`, `exercise_history/{id}`, `session/{workoutId}/{sessionTimestamp}`, `settings`. Bottom nav only on `home`/`history`/`settings`.
+- CSV import/export uses `CsvManager` in `util/`. Import skips malformed rows and duplicate workout names and reports a summary.
 - Settings persisted via DataStore preferences (key `settings`), not SharedPreferences.
+- **Known limitation:** Room `exportSchema = true` is configured (Room Gradle plugin), but the `app/src/main/schemas/` export has not been generated/committed yet.
 
 ## Settings architecture
 
