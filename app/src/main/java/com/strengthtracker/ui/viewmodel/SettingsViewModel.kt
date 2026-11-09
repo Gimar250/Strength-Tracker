@@ -168,15 +168,23 @@ class SettingsViewModel(
         return Triple(sessions, workouts, exercisesMap)
     }
 
-    fun importWorkouts(imported: List<CsvManager.ImportedWorkout>) {
+    // Workouts whose name already exists are skipped to avoid duplicates.
+    fun importWorkouts(imported: List<CsvManager.ImportedWorkout>, skippedRows: Int = 0) {
         if (imported.isEmpty()) {
             _snackbarMessage.value = "Nothing to import"
+            return
+        }
+        val existingNames = _workouts.value.map { it.name }.toSet()
+        val newWorkouts = imported.filter { it.name !in existingNames }
+        val duplicates = imported.size - newWorkouts.size
+        if (newWorkouts.isEmpty()) {
+            _snackbarMessage.value = "All ${imported.size} workout(s) already exist"
             return
         }
         _isCsvBusy.value = true
         viewModelScope.launch {
             val currentOffset = _workouts.value.size
-            imported.forEachIndexed { index, importedWorkout ->
+            newWorkouts.forEachIndexed { index, importedWorkout ->
                 val workoutId = repository.insertWorkout(
                     com.strengthtracker.data.db.entity.Workout(
                         name = importedWorkout.name,
@@ -199,7 +207,10 @@ class SettingsViewModel(
                 }
             }
             _isCsvBusy.value = false
-            _snackbarMessage.value = "Imported ${imported.size} workout(s)"
+            val parts = mutableListOf("Imported ${newWorkouts.size} workout(s)")
+            if (duplicates > 0) parts.add("$duplicates already existed")
+            if (skippedRows > 0) parts.add("$skippedRows row(s) skipped")
+            _snackbarMessage.value = parts.joinToString(", ")
         }
     }
 

@@ -97,7 +97,7 @@ fun SettingsScreen(
         uri?.let {
             coroutineScope.launch {
                 val imported = CsvManager.importWorkouts(context, it)
-                settingsViewModel.importWorkouts(imported)
+                settingsViewModel.importWorkouts(imported.workouts, imported.skippedRows)
             }
         }
     }

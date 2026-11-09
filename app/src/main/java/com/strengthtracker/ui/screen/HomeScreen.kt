@@ -99,7 +99,7 @@ fun HomeScreen(
             try {
                 val imported = CsvManager.importWorkouts(context, uri)
                 withContext(Dispatchers.Main) {
-                    viewModel.importWorkouts(imported)
+                    viewModel.importWorkouts(imported.workouts, imported.skippedRows)
                 }
             } catch (e: Exception) {
                 viewModel.setSnackbarMessage("Import failed: ${e.message}")

@@ -144,13 +144,20 @@ object CsvManager {
         val exercises: List<ImportedExercise>
     )
 
+    data class ImportResult(
+        val workouts: List<ImportedWorkout>,
+        val skippedRows: Int
+    )
+
     /**
      * Parses a workouts CSV (first line is the header).
-     * Malformed numeric cells fall back to their default values.
+     * Blank numeric cells fall back to their default values; cells that contain
+     * a value that does not parse are skipped and counted in [ImportResult.skippedRows].
      */
-    fun importWorkoutsText(text: String): List<ImportedWorkout> {
+    fun importWorkoutsText(text: String): ImportResult {
         val rows = mutableMapOf<String, MutableList<ImportedExercise>>()
         val workoutOrders = mutableMapOf<String, Int>()
+        var skippedRows = 0
         // Iterate over data lines (skip the header line)
         var isFirstLine = true
         for (line in text.lines()) {
@@ -161,17 +168,29 @@ object CsvManager {
             if (workoutName.isNotBlank()) {
                 val workoutOrder = cols.getOrNull(1)?.trim()?.toIntOrNull() ?: 0
                 workoutOrders[workoutName] = workoutOrder
-                if (!rows.containsKey(workoutName)) rows[workoutName] = mutableListOf()
                 val exerciseName = cols.getOrNull(2)?.trim() ?: ""
                 if (exerciseName.isNotBlank()) {
-                    rows[workoutName]!!.add(
+                    val sets = cols.getOrNull(4)?.trim()?.toIntOrNull()
+                    val restSeconds = cols.getOrNull(5)?.trim()?.toIntOrNull()
+                    val targetWeight = cols.getOrNull(6)?.trim()?.toFloatOrNull()
+                    val targetReps = cols.getOrNull(7)?.trim()?.toIntOrNull()
+                    if (
+                        isMalformedValue(cols.getOrNull(4), sets != null) ||
+                        isMalformedValue(cols.getOrNull(5), restSeconds != null) ||
+                        isMalformedValue(cols.getOrNull(6), targetWeight != null) ||
+                        isMalformedValue(cols.getOrNull(7), targetReps != null)
+                    ) {
+                        skippedRows++
+                        continue
+                    }
+                    rows.getOrPut(workoutName) { mutableListOf() }.add(
                         ImportedExercise(
                             name = exerciseName,
                             orderIndex = cols.getOrNull(3)?.trim()?.toIntOrNull() ?: 0,
-                            sets = cols.getOrNull(4)?.trim()?.toIntOrNull() ?: SettingsRepository.DEFAULT_SETS,
-                            restSeconds = cols.getOrNull(5)?.trim()?.toIntOrNull() ?: SettingsRepository.DEFAULT_REST,
-                            targetWeightKg = cols.getOrNull(6)?.trim()?.toFloatOrNull(),
-                            targetReps = cols.getOrNull(7)?.trim()?.toIntOrNull(),
+                            sets = sets ?: SettingsRepository.DEFAULT_SETS,
+                            restSeconds = restSeconds ?: SettingsRepository.DEFAULT_REST,
+                            targetWeightKg = targetWeight,
+                            targetReps = targetReps,
                             exerciseType = cols.getOrNull(8)?.trim()?.let { t ->
                                 ExerciseType.entries.find { it.name == t }
                             } ?: ExerciseType.entries.find { it.name == SettingsRepository.DEFAULT_EXERCISE_TYPE } ?: ExerciseType.REPS
@@ -180,19 +199,23 @@ object CsvManager {
                 }
             }
         }
-        return rows.map { (name, exercises) ->
+        val workouts = rows.map { (name, exercises) ->
             ImportedWorkout(
                 name = name,
                 orderIndex = workoutOrders[name] ?: 0,
                 exercises = exercises.sortedBy { it.orderIndex }
             )
         }.sortedBy { it.orderIndex }
+        return ImportResult(workouts = workouts, skippedRows = skippedRows)
     }
 
-    fun importWorkouts(context: Context, uri: Uri): List<ImportedWorkout> {
+    private fun isMalformedValue(raw: String?, parsed: Boolean): Boolean =
+        raw != null && raw.isNotBlank() && !parsed
+
+    fun importWorkouts(context: Context, uri: Uri): ImportResult {
         return context.contentResolver.openInputStream(uri)
             ?.use { it.bufferedReader().use { importWorkoutsText(it.readText()) } }
-            ?: emptyList()
+            ?: ImportResult(workouts = emptyList(), skippedRows = 0)
     }
 
     // ── CSV primitives ──────────────────────────────────────────────────────
