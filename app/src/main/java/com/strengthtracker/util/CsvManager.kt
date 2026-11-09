@@ -10,7 +10,6 @@ import com.strengthtracker.data.db.entity.WorkoutSession
 import java.io.BufferedReader
 import java.io.InputStreamReader
 import java.text.SimpleDateFormat
-import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 
@@ -62,11 +61,10 @@ object CsvManager {
         val workoutMap = workouts.associateBy { it.id }
         val exerciseMap = exercisesByWorkout.values.flatten().associateBy { it.id }
 
-        // Build session index by "workoutId-year-dayOfYear" for fast note lookup
-        val sessionIndex = sessions.associateBy { session ->
-            val cal = Calendar.getInstance().apply { timeInMillis = session.startTimestamp }
-            "${session.workoutId}-${cal.get(Calendar.YEAR)}-${cal.get(Calendar.DAY_OF_YEAR)}"
-        }
+        // Group sessions by workout; a log is matched to the session whose time
+        // window (start .. start + duration) contains its timestamp, so several
+        // sessions of the same workout on the same day stay distinct.
+        val sessionsByWorkout = sessions.groupBy { it.workoutId }
 
         context.contentResolver.openOutputStream(uri)?.use { stream ->
             val writer = stream.bufferedWriter()
@@ -77,10 +75,11 @@ object CsvManager {
                 val exerciseName = exercise?.name ?: "Unknown"
                 val exerciseType = exercise?.exerciseType?.name ?: "REPS"
 
-                // Find matching session for this log's day
-                val cal = Calendar.getInstance().apply { timeInMillis = log.timestamp }
-                val key = "${log.workoutId}-${cal.get(Calendar.YEAR)}-${cal.get(Calendar.DAY_OF_YEAR)}"
-                val session = sessionIndex[key]
+                // Find the session this log was recorded in
+                val session = sessionsByWorkout[log.workoutId]
+                    ?.filter { it.startTimestamp <= log.timestamp &&
+                              log.timestamp < it.startTimestamp + it.durationSeconds * 1000L }
+                    ?.maxByOrNull { it.startTimestamp }
 
                 writer.write(
                     "${workoutName.escapeCsv()}," +
