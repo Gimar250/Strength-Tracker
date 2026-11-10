@@ -49,7 +49,19 @@ app/src/main/java/com/strengthtracker/
 app/src/test/java/com/strengthtracker/
     FakeWorkoutData.kt     — in-memory fake DAOs/repository for unit tests (no real DB)
     ActiveWorkoutViewModelTest.kt, CsvManagerTest.kt, SessionDetailViewModelTest.kt
+
+fastlane/metadata/android/en-US/
+    short_description.txt, full_description.txt
+    images/               — store icon + 3 phone screenshots
+    changelogs/          — one file per versionCode (e.g. 140.txt)
 ```
+
+## Store metadata & releases
+
+- Store metadata lives in `fastlane/metadata/android/en-US/` (`short_description.txt`, `full_description.txt`, `images/`, `changelogs/<versionCode>.txt`). When bumping a version, add the matching `changelogs/<newVersionCode>.txt`.
+- Release process: set `versionName`/`versionCode` in `app/build.gradle.kts`, build the APK (`./gradlew :app:assembleDebug` — released GitHub assets are debug builds), attach it to the GitHub release, and tag `v<versionName>`.
+- F-Droid: the app's metadata yml is in the fdroiddata fork (branch `com.strengthtracker`, `metadata/com.strengthtracker.yml`), submitted via MR https://gitlab.com/fdroid/fdroiddata/-/merge_requests/56549 (CI green, awaiting maintainer merge). On a version bump: tag `v<versionName>` upstream first, then update `CurrentVersion`, `CurrentVersionCode`, and the new `Builds` entry (`commit` = the tag's full SHA) in that yml and push.
+- F-Droid build constraint: `settings.gradle.kts` must not include the `org.gradle.toolchains.foojay-resolver` plugin — the F-Droid scanner rejects it (removed in `0fca541`).
 
 ## Architecture notes
 

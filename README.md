@@ -11,7 +11,7 @@
 * **Modern UI:** Clean, responsive, and easy-to-use interface designed for quick data entry during sessions.
 * **Local Storage:** Securely stores all workout data directly on your device (no internet connection required).
 * **CSV Export/Import:** Easily back up or transfer your data by exporting and importing workout logs as CSV files.
-* **Progress Tracking (Coming Soon):** Monitor your strength gains and volume over time.
+* **Progress Tracking:** Per-exercise history with your best weight/reps per set, plus a history screen covering your last 14 days of sessions.
 
 ---
 
@@ -61,17 +61,17 @@ Contributions are what make the open-source community such an amazing place to l
 git checkout -b feature/AmazingFeature
 ```
 
-4. Commit your changes:
+3. Commit your changes:
 ```bash
 git commit -m 'Add some AmazingFeature'
 ```
 
-5. Push to the branch:
+4. Push the branch:
 ```bash
 git push origin feature/AmazingFeature
 ```
 
-6. Open a Pull Request.
+5. Open a Pull Request.
 
 ---
 
