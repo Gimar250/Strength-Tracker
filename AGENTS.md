@@ -60,7 +60,7 @@ fastlane/metadata/android/en-US/
 
 - Store metadata lives in `fastlane/metadata/android/en-US/` (`short_description.txt`, `full_description.txt`, `images/`, `changelogs/<versionCode>.txt`). When bumping a version, add the matching `changelogs/<newVersionCode>.txt`.
 - Release process: set `versionName`/`versionCode` in `app/build.gradle.kts`, build the APK (`./gradlew :app:assembleDebug` — released GitHub assets are debug builds), attach it to the GitHub release, and tag `v<versionName>`.
-- F-Droid: the app's metadata yml is in the fdroiddata fork (branch `com.strengthtracker`, `metadata/com.strengthtracker.yml`), submitted via MR https://gitlab.com/fdroid/fdroiddata/-/merge_requests/56549 (CI green, awaiting maintainer merge). On a version bump: tag `v<versionName>` upstream first, then update `CurrentVersion`, `CurrentVersionCode`, and the new `Builds` entry (`commit` = the tag's full SHA) in that yml and push.
+- F-Droid: the new-app inclusion MR https://gitlab.com/fdroid/fdroiddata/-/merge_requests/56549 was **closed by the maintainer on 2026-11-10** — "This app doesn't provide unique features" (F-Droid only accepts apps whose value the store doesn't already have; the build itself passed all CI). The yml remains in the fdroiddata fork (branch `com.strengthtracker`, `metadata/com.strengthtracker.yml`). To resubmit later (e.g. once the app gains features that differentiate it from apps already in the store): tag `v<versionName>` upstream, update `CurrentVersion`/`CurrentVersionCode`/`Builds.commit` in that yml, and open a new MR.
 - F-Droid build constraint: `settings.gradle.kts` must not include the `org.gradle.toolchains.foojay-resolver` plugin — the F-Droid scanner rejects it (removed in `0fca541`).
 
 ## Architecture notes
